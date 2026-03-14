@@ -47,7 +47,7 @@ func TestTokenization(t *testing.T) {
 			// Regression: end-of-line flush must reset t.current so that a word
 			// spanning the last column of a line is not emitted twice.
 			description: "multi-line define",
-			content: "(define x\n  5)",
+			content:     "(define x\n  5)",
 			expectedTokens: []Token{
 				{Kind: LParen, Value: "("},
 				{Kind: Define, Value: "define"},

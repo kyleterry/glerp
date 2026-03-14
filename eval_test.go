@@ -93,6 +93,25 @@ func TestEval(t *testing.T) {
 		{"list", "(list 1 2 3)", "(1 2 3)"},
 		{"list empty", "(list)", "()"},
 
+		// case
+		{"case match first", `(case 1 ((1) "one") ((2) "two"))`, `"one"`},
+		{"case match second", `(case 2 ((1) "one") ((2) "two"))`, `"two"`},
+		{"case multi-datum", `(case 3 ((1 2) "low") ((3 4) "high"))`, `"high"`},
+		{"case else", `(case 99 ((1) "one") (else "other"))`, `"other"`},
+		{"case no match", `(case 5 ((1) "one") ((2) "two"))`, `#f`},
+		{"case key is expression", `(case (+ 1 1) ((1) "one") ((2) "two"))`, `"two"`},
+		{"case symbol datum", `(case 'b ((a) 1) ((b) 2) ((c) 3))`, `2`},
+		{"case bool datum", `(case #t ((#f) "no") ((#t) "yes"))`, `"yes"`},
+		{"case multi-expr body", `(define x 0) (case 1 ((1) (set! x 10) x))`, `10`},
+
+		// square bracket list syntax
+		{"bracket list literal", "'[1 2 3]", "(1 2 3)"},
+		{"bracket let bindings", "(let [(x 3) (y 4)] (+ x y))", "7"},
+		{"bracket let* bindings", "(let* [(x 3) (y (* x 2))] y)", "6"},
+		{"bracket nested in parens", "(+ 1 [+ 2 3])", "6"},
+		{"parens nested in brackets", "[+ 1 (+ 2 3)]", "6"},
+		{"bracket let quoted value", "(let [(foo 'foo-value) (bar \"bar value\")] foo)", "foo-value"},
+
 		// recursion
 		{"factorial", "(define (fact n) (if (= n 0) 1 (* n (fact (- n 1))))) (fact 5)", "120"},
 		{"fibonacci", "(define (fib n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))) (fib 10)", "55"},
@@ -105,6 +124,47 @@ func TestEval(t *testing.T) {
 			      (cons (f (car lst)) (my-map f (cdr lst)))))
 			(my-map (lambda (x) (* x x)) '(1 2 3 4 5))
 		`, "(1 4 9 16 25)"},
+
+		// begin
+		{"begin returns last", "(begin 1 2 3)", "3"},
+		{"begin side effects", "(define x 0) (begin (set! x 1) (set! x 2)) x", "2"},
+		{"begin empty", "(begin)", "#f"},
+
+		// cond
+		{"cond first match", "(cond ((= 1 1) \"one\") ((= 1 2) \"two\"))", `"one"`},
+		{"cond second match", "(cond ((= 1 2) \"one\") ((= 1 1) \"two\"))", `"two"`},
+		{"cond else", "(cond ((= 1 2) \"no\") (else \"yes\"))", `"yes"`},
+		{"cond no match", "(cond (#f 1))", "#f"},
+
+		// and / or
+		{"and all true", "(and 1 2 3)", "3"},
+		{"and short circuit", "(and 1 #f 3)", "#f"},
+		{"and empty", "(and)", "#t"},
+		{"or first true", "(or #f 2 3)", "2"},
+		{"or all false", "(or #f #f)", "#f"},
+		{"or empty", "(or)", "#f"},
+
+		// stdlib: (scheme list)
+		{"import list length", "(import (scheme list)) (length '(a b c d))", "4"},
+		{"import list append", "(import (scheme list)) (append '(1 2) '(3 4))", "(1 2 3 4)"},
+		{"import list reverse", "(import (scheme list)) (reverse '(1 2 3))", "(3 2 1)"},
+		{"import list map", "(import (scheme list)) (map (lambda (x) (* x 2)) '(1 2 3))", "(2 4 6)"},
+		{"import list filter", "(import (scheme list)) (filter (lambda (x) (> x 2)) '(1 2 3 4))", "(3 4)"},
+		{"import list fold", "(import (scheme list)) (fold + 0 '(1 2 3 4 5))", "15"},
+		{"import list list-ref", "(import (scheme list)) (list-ref '(a b c) 1)", "b"},
+		{"import list list-tail", "(import (scheme list)) (list-tail '(a b c d) 2)", "(c d)"},
+
+		// stdlib: (scheme math)
+		{"import math abs pos", "(import (scheme math)) (abs 5)", "5"},
+		{"import math abs neg", "(import (scheme math)) (abs -7)", "7"},
+		{"import math max", "(import (scheme math)) (max 3 7)", "7"},
+		{"import math min", "(import (scheme math)) (min 3 7)", "3"},
+		{"import math square", "(import (scheme math)) (square 4)", "16"},
+		{"import math cube", "(import (scheme math)) (cube 3)", "27"},
+		{"import math average", "(import (scheme math)) (average 4 6)", "5"},
+		{"import math clamp lo", "(import (scheme math)) (clamp -5 0 10)", "0"},
+		{"import math clamp hi", "(import (scheme math)) (clamp 15 0 10)", "10"},
+		{"import math clamp in", "(import (scheme math)) (clamp 5 0 10)", "5"},
 	}
 
 	for _, tt := range tests {

@@ -22,8 +22,12 @@ type NumberExpr struct {
 }
 
 func (e *NumberExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
-func (e *NumberExpr) Token() token.Token                { return e.tok }
-func (e *NumberExpr) Value() float64                    { return e.val }
+
+// Token returns the source token for this expression.
+func (e *NumberExpr) Token() token.Token { return e.tok }
+
+// Value returns the underlying float64 value.
+func (e *NumberExpr) Value() float64 { return e.val }
 func (e *NumberExpr) String() string {
 	if e.val == float64(int64(e.val)) {
 		return strconv.FormatInt(int64(e.val), 10)
@@ -38,9 +42,15 @@ type StringExpr struct {
 }
 
 func (e *StringExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
-func (e *StringExpr) Token() token.Token                { return e.tok }
-func (e *StringExpr) Value() string                     { return e.val }
-func (e *StringExpr) String() string                    { return fmt.Sprintf("%q", e.val) }
+
+// Token returns the source token for this expression.
+func (e *StringExpr) Token() token.Token { return e.tok }
+
+// Value returns the raw string contents, without surrounding quotes.
+func (e *StringExpr) Value() string { return e.val }
+
+// String returns the quoted representation, e.g. "hello".
+func (e *StringExpr) String() string { return fmt.Sprintf("%q", e.val) }
 
 // BoolExpr is a boolean value (#t or #f).
 type BoolExpr struct {
@@ -49,8 +59,12 @@ type BoolExpr struct {
 }
 
 func (e *BoolExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
-func (e *BoolExpr) Token() token.Token                { return e.tok }
-func (e *BoolExpr) Value() bool                       { return e.val }
+
+// Token returns the source token for this expression.
+func (e *BoolExpr) Token() token.Token { return e.tok }
+
+// Value returns the underlying boolean. Only #f is false; everything else is truthy.
+func (e *BoolExpr) Value() bool { return e.val }
 func (e *BoolExpr) String() string {
 	if e.val {
 		return "#t"
@@ -68,8 +82,11 @@ func (e *SymbolExpr) Eval(env *Environment) (Expr, error) {
 	return env.Find(e.val)
 }
 
+// Token returns the source token for this expression.
 func (e *SymbolExpr) Token() token.Token { return e.tok }
-func (e *SymbolExpr) String() string     { return e.val }
+
+// String returns the symbol name.
+func (e *SymbolExpr) String() string { return e.val }
 
 // ListExpr is a parenthesized s-expression. Evaluation dispatches on the head:
 // special forms are handled directly; otherwise it is a procedure application.
@@ -78,8 +95,11 @@ type ListExpr struct {
 	elements []Expr
 }
 
-func (e *ListExpr) Token() token.Token   { return e.tok }
-func (e *ListExpr) Elements() []Expr    { return e.elements }
+// Token returns the source token for this expression.
+func (e *ListExpr) Token() token.Token { return e.tok }
+
+// Elements returns the expressions contained in this list.
+func (e *ListExpr) Elements() []Expr { return e.elements }
 
 func (e *ListExpr) String() string {
 	if len(e.elements) == 0 {
@@ -155,7 +175,11 @@ type LambdaExpr struct {
 }
 
 func (e *LambdaExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
-func (e *LambdaExpr) Token() token.Token                { return e.tok }
+
+// Token returns the source token for this expression.
+func (e *LambdaExpr) Token() token.Token { return e.tok }
+
+// String returns a summary representation showing the parameter list.
 func (e *LambdaExpr) String() string {
 	return "(lambda (" + strings.Join(e.params, " ") + ") ...)"
 }
@@ -170,8 +194,12 @@ type FormExpr struct {
 }
 
 func (e *FormExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
-func (e *FormExpr) Token() token.Token                { return token.Token{} }
-func (e *FormExpr) String() string                    { return fmt.Sprintf("#<form:%s>", e.name) }
+
+// Token returns an empty token; FormExpr values have no source position.
+func (e *FormExpr) Token() token.Token { return token.Token{} }
+
+// String returns a display name identifying this as a special form.
+func (e *FormExpr) String() string { return fmt.Sprintf("#<form:%s>", e.name) }
 
 // BuiltinExpr is a Go-implemented procedure.
 type BuiltinExpr struct {
@@ -180,8 +208,12 @@ type BuiltinExpr struct {
 }
 
 func (e *BuiltinExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
-func (e *BuiltinExpr) Token() token.Token                { return token.Token{} }
-func (e *BuiltinExpr) String() string                    { return fmt.Sprintf("#<builtin:%s>", e.name) }
+
+// Token returns an empty token; BuiltinExpr values have no source position.
+func (e *BuiltinExpr) Token() token.Token { return token.Token{} }
+
+// String returns a display name identifying this as a built-in procedure.
+func (e *BuiltinExpr) String() string { return fmt.Sprintf("#<builtin:%s>", e.name) }
 
 // apply calls a procedure (lambda or builtin) with already-evaluated arguments.
 func apply(proc Expr, args []Expr) (Expr, error) {
@@ -362,4 +394,116 @@ func evalBody(exprs []Expr, env *Environment) (Expr, error) {
 		}
 	}
 	return result, nil
+}
+
+// eqv reports whether two expressions are equivalent in the sense of Scheme's
+// eqv?: identical booleans, equal numbers, equal strings, or identical symbols.
+func eqv(a, b Expr) bool {
+	switch x := a.(type) {
+	case *NumberExpr:
+		y, ok := b.(*NumberExpr)
+		return ok && x.val == y.val
+	case *StringExpr:
+		y, ok := b.(*StringExpr)
+		return ok && x.val == y.val
+	case *BoolExpr:
+		y, ok := b.(*BoolExpr)
+		return ok && x.val == y.val
+	case *SymbolExpr:
+		y, ok := b.(*SymbolExpr)
+		return ok && x.val == y.val
+	}
+	return false
+}
+
+// evalCase implements (case <key> ((<datum> ...) <body> ...) ... [(else <body> ...)]).
+// The key is evaluated once; each clause's datum list is compared against it
+// using eqv. The body of the first matching clause is evaluated and returned.
+// An else clause matches unconditionally. Returns void if no clause matches.
+func evalCase(args []Expr, env *Environment) (Expr, error) {
+	if len(args) < 2 {
+		return nil, fmt.Errorf("case: requires a key expression and at least one clause")
+	}
+	key, err := args[0].Eval(env)
+	if err != nil {
+		return nil, err
+	}
+	for _, arg := range args[1:] {
+		clause, ok := arg.(*ListExpr)
+		if !ok || len(clause.elements) < 2 {
+			return nil, fmt.Errorf("case: invalid clause %s", arg.String())
+		}
+		head := clause.elements[0]
+		body := clause.elements[1:]
+		if sym, ok := head.(*SymbolExpr); ok && sym.val == "else" {
+			return evalBody(body, env)
+		}
+		datums, ok := head.(*ListExpr)
+		if !ok {
+			return nil, fmt.Errorf("case: clause head must be a datum list or else, got %s", head.String())
+		}
+		for _, datum := range datums.elements {
+			if eqv(key, datum) {
+				return evalBody(body, env)
+			}
+		}
+	}
+	return Void(), nil
+}
+
+func evalBegin(args []Expr, env *Environment) (Expr, error) {
+	if len(args) == 0 {
+		return Void(), nil
+	}
+	return evalBody(args, env)
+}
+
+func evalCond(args []Expr, env *Environment) (Expr, error) {
+	for _, arg := range args {
+		clause, ok := arg.(*ListExpr)
+		if !ok || len(clause.elements) < 2 {
+			return nil, fmt.Errorf("cond: invalid clause %s", arg.String())
+		}
+		test := clause.elements[0]
+		body := clause.elements[1:]
+		if sym, ok := test.(*SymbolExpr); ok && sym.val == "else" {
+			return evalBody(body, env)
+		}
+		result, err := test.Eval(env)
+		if err != nil {
+			return nil, err
+		}
+		if b, ok := result.(*BoolExpr); !ok || b.val {
+			return evalBody(body, env)
+		}
+	}
+	return Void(), nil
+}
+
+func evalAnd(args []Expr, env *Environment) (Expr, error) {
+	var result Expr = boolean(true)
+	for _, arg := range args {
+		val, err := arg.Eval(env)
+		if err != nil {
+			return nil, err
+		}
+		if b, ok := val.(*BoolExpr); ok && !b.val {
+			return boolean(false), nil
+		}
+		result = val
+	}
+	return result, nil
+}
+
+func evalOr(args []Expr, env *Environment) (Expr, error) {
+	for _, arg := range args {
+		val, err := arg.Eval(env)
+		if err != nil {
+			return nil, err
+		}
+		if b, ok := val.(*BoolExpr); !ok || b.val {
+			return val, nil
+		}
+	}
+	return boolean(false), nil
 }

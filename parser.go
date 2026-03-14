@@ -7,7 +7,8 @@ import (
 	"go.e64ec.com/glerp/token"
 )
 
-// Parser builds an expression tree from a token stream.
+// Parser converts a token stream into a slice of Expr values ready for
+// evaluation. It is a recursive-descent parser for s-expressions.
 type Parser struct {
 	lexer *token.Lexer
 }
@@ -28,7 +29,7 @@ func (p *Parser) Run() ([]Expr, error) {
 func (p *Parser) parseExpr() (Expr, error) {
 	tok := p.lexer.PeekToken()
 	switch tok.Kind {
-	case token.LParen:
+	case token.LParen, token.LBrack:
 		return p.parseList()
 
 	case token.Quote:
@@ -84,16 +85,20 @@ func (p *Parser) parseExpr() (Expr, error) {
 }
 
 func (p *Parser) parseList() (Expr, error) {
-	open := p.lexer.NextToken() // consume '('
+	open := p.lexer.NextToken() // consume '(' or '['
+	close := token.RParen
+	if open.Kind == token.LBrack {
+		close = token.RBrack
+	}
 	var elements []Expr
 	for {
 		peek := p.lexer.PeekToken()
-		if peek.Kind == token.RParen {
+		if peek.Kind == close {
 			p.lexer.NextToken()
 			break
 		}
 		if peek.Kind == token.EOF {
-			return nil, fmt.Errorf("unexpected EOF: unclosed '('")
+			return nil, fmt.Errorf("unexpected EOF: unclosed '%s'", open.Value)
 		}
 		expr, err := p.parseExpr()
 		if err != nil {

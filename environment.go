@@ -2,7 +2,9 @@ package glerp
 
 import "fmt"
 
-// Environment holds variable bindings and a reference to an enclosing scope.
+// Environment is a lexically-scoped map of variable bindings. Each environment
+// optionally references an outer (enclosing) scope, forming the chain used for
+// variable lookup and lambda closures.
 type Environment struct {
 	vals  map[string]Expr
 	outer *Environment
@@ -57,5 +59,11 @@ func NewEnvironment() *Environment {
 	for name, fn := range builtins {
 		env.Bind(name, &BuiltinExpr{name: name, fn: fn})
 	}
+	env.RegisterForm("case", evalCase)
+	env.RegisterForm("begin", evalBegin)
+	env.RegisterForm("cond", evalCond)
+	env.RegisterForm("and", evalAnd)
+	env.RegisterForm("or", evalOr)
+	env.RegisterForm("import", evalImport)
 	return env
 }
