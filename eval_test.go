@@ -93,6 +93,19 @@ func TestEval(t *testing.T) {
 		{"list", "(list 1 2 3)", "(1 2 3)"},
 		{"list empty", "(list)", "()"},
 
+		// values / define-values
+		{"values single is identity", "(values 42)", "42"},
+		{"values multiple", "(values 1 2 3)", "(values 1 2 3)"},
+		{"define-values basic", "(define-values (a b c) (values 1 2 3)) (+ a b c)", "6"},
+		{"define-values single", "(define-values (x) (values 99)) x", "99"},
+		{"define-values single non-values", "(define-values (x) 42) x", "42"},
+		{"define-values from lambda", `
+			(define (minmax a b)
+			  (if (< a b) (values a b) (values b a)))
+			(define-values (lo hi) (minmax 7 3))
+			(list lo hi)
+		`, "(3 7)"},
+
 		// case
 		{"case match first", `(case 1 ((1) "one") ((2) "two"))`, `"one"`},
 		{"case match second", `(case 2 ((1) "one") ((2) "two"))`, `"two"`},

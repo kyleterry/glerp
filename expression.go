@@ -28,6 +28,7 @@ func (e *NumberExpr) Token() token.Token { return e.tok }
 
 // Value returns the underlying float64 value.
 func (e *NumberExpr) Value() float64 { return e.val }
+
 func (e *NumberExpr) String() string {
 	if e.val == float64(int64(e.val)) {
 		return strconv.FormatInt(int64(e.val), 10)
@@ -65,6 +66,7 @@ func (e *BoolExpr) Token() token.Token { return e.tok }
 
 // Value returns the underlying boolean. Only #f is false; everything else is truthy.
 func (e *BoolExpr) Value() bool { return e.val }
+
 func (e *BoolExpr) String() string {
 	if e.val {
 		return "#t"
@@ -201,6 +203,30 @@ func (e *FormExpr) Token() token.Token { return token.Token{} }
 // String returns a display name identifying this as a special form.
 func (e *FormExpr) String() string { return fmt.Sprintf("#<form:%s>", e.name) }
 
+// ValuesExpr holds multiple return values produced by (values ...).
+// It may only appear where multiple values are explicitly consumed, such as
+// define-values. Using a ValuesExpr in a single-value position is an error.
+type ValuesExpr struct {
+	vals []Expr
+}
+
+func (e *ValuesExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
+
+// Token returns an empty token; ValuesExpr values have no source position.
+func (e *ValuesExpr) Token() token.Token { return token.Token{} }
+
+// String returns a readable representation of all contained values.
+func (e *ValuesExpr) String() string {
+	parts := make([]string, len(e.vals))
+	for i, v := range e.vals {
+		parts[i] = v.String()
+	}
+	return "(values " + strings.Join(parts, " ") + ")"
+}
+
+// Values returns the individual expressions wrapped by this object.
+func (e *ValuesExpr) Values() []Expr { return e.vals }
+
 // BuiltinExpr is a Go-implemented procedure.
 type BuiltinExpr struct {
 	name string
@@ -233,8 +259,6 @@ func apply(proc Expr, args []Expr) (Expr, error) {
 		return nil, fmt.Errorf("%s is not a procedure", proc.String())
 	}
 }
-
-// --- special form evaluators ---
 
 func evalDefine(args []Expr, env *Environment) (Expr, error) {
 	if len(args) < 2 {
@@ -393,6 +417,46 @@ func evalBody(exprs []Expr, env *Environment) (Expr, error) {
 			return nil, err
 		}
 	}
+	return result, nil
+}
+
+// evalDefineValues implements (define-values (name ...) expr).
+// expr must evaluate to a ValuesExpr whose arity matches the name list.
+// As a special case, a single-name list accepts any non-values result.
+func evalDefineValues(args []Expr, env *Environment) (Expr, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("define-values: expected name list and expression, got %d args", len(args))
+	}
+	nameList, ok := args[0].(*ListExpr)
+	if !ok {
+		return nil, fmt.Errorf("define-values: first argument must be a list of names")
+	}
+	syms := make([]string, len(nameList.elements))
+	for i, el := range nameList.elements {
+		sym, ok := el.(*SymbolExpr)
+		if !ok {
+			return nil, fmt.Errorf("define-values: names must be symbols, got %s", el.String())
+		}
+		syms[i] = sym.val
+	}
+	result, err := args[1].Eval(env)
+	if err != nil {
+		return nil, err
+	}
+	if mv, ok := result.(*ValuesExpr); ok {
+		if len(mv.vals) != len(syms) {
+			return nil, fmt.Errorf("define-values: expected %d values, got %d", len(syms), len(mv.vals))
+		}
+		for i, name := range syms {
+			env.Bind(name, mv.vals[i])
+		}
+		return result, nil
+	}
+	// Single (non-values) result: only valid with exactly one name.
+	if len(syms) != 1 {
+		return nil, fmt.Errorf("define-values: expected %d values, got 1", len(syms))
+	}
+	env.Bind(syms[0], result)
 	return result, nil
 }
 

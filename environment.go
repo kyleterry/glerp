@@ -59,6 +59,7 @@ func NewEnvironment() *Environment {
 	for name, fn := range builtins {
 		env.Bind(name, &BuiltinExpr{name: name, fn: fn})
 	}
+	env.RegisterForm("define-values", evalDefineValues)
 	env.RegisterForm("case", evalCase)
 	env.RegisterForm("begin", evalBegin)
 	env.RegisterForm("cond", evalCond)

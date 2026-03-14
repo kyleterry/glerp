@@ -21,6 +21,7 @@ var builtins = map[string]func([]Expr) (Expr, error){
 	"list":    builtinList,
 	"display": builtinDisplay,
 	"newline": builtinNewline,
+	"values":  builtinValues,
 }
 
 func toNum(name string, e Expr) (float64, error) {
@@ -247,6 +248,13 @@ func builtinDisplay(args []Expr) (Expr, error) {
 		fmt.Print(args[0].String())
 	}
 	return &BoolExpr{}, nil
+}
+
+func builtinValues(args []Expr) (Expr, error) {
+	if len(args) == 1 {
+		return args[0], nil
+	}
+	return &ValuesExpr{vals: args}, nil
 }
 
 func builtinNewline(args []Expr) (Expr, error) {
