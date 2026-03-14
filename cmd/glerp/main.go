@@ -25,7 +25,7 @@ func runFile(path string) {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	lexer, err := token.NewLexer(f)
 	if err != nil {
@@ -60,7 +60,7 @@ func runREPL() {
 		fmt.Fprintf(os.Stderr, "readline error: %v\n", err)
 		os.Exit(1)
 	}
-	defer rl.Close()
+	defer rl.Close() //nolint:errcheck
 
 	fmt.Println("glerp 0.1  —  Ctrl-D to exit")
 

@@ -30,7 +30,7 @@ func EvalFile(path string, env *Environment) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	lexer, err := token.NewLexer(f)
 	if err != nil {
