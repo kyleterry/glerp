@@ -1,0 +1,258 @@
+package glerp
+
+import "fmt"
+
+// builtins is the table of Go-implemented procedures loaded into NewEnvironment.
+var builtins = map[string]func([]Expr) (Expr, error){
+	"+":       builtinAdd,
+	"-":       builtinSub,
+	"*":       builtinMul,
+	"/":       builtinDiv,
+	"<":       builtinLess,
+	">":       builtinGreater,
+	"<=":      builtinLessEq,
+	">=":      builtinGreaterEq,
+	"=":       builtinNumEq,
+	"not":     builtinNot,
+	"car":     builtinCar,
+	"cdr":     builtinCdr,
+	"cons":    builtinCons,
+	"empty?":  builtinEmpty,
+	"list":    builtinList,
+	"display": builtinDisplay,
+	"newline": builtinNewline,
+}
+
+func toNum(name string, e Expr) (float64, error) {
+	n, ok := e.(*NumberExpr)
+	if !ok {
+		return 0, fmt.Errorf("%s: expected number, got %s", name, e.String())
+	}
+	return n.val, nil
+}
+
+func num(v float64) *NumberExpr { return &NumberExpr{val: v} }
+func boolean(v bool) *BoolExpr  { return &BoolExpr{val: v} }
+
+func builtinAdd(args []Expr) (Expr, error) {
+	sum := 0.0
+	for _, a := range args {
+		n, err := toNum("+", a)
+		if err != nil {
+			return nil, err
+		}
+		sum += n
+	}
+	return num(sum), nil
+}
+
+func builtinSub(args []Expr) (Expr, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("-: requires at least 1 argument")
+	}
+	first, err := toNum("-", args[0])
+	if err != nil {
+		return nil, err
+	}
+	if len(args) == 1 {
+		return num(-first), nil
+	}
+	for _, a := range args[1:] {
+		n, err := toNum("-", a)
+		if err != nil {
+			return nil, err
+		}
+		first -= n
+	}
+	return num(first), nil
+}
+
+func builtinMul(args []Expr) (Expr, error) {
+	product := 1.0
+	for _, a := range args {
+		n, err := toNum("*", a)
+		if err != nil {
+			return nil, err
+		}
+		product *= n
+	}
+	return num(product), nil
+}
+
+func builtinDiv(args []Expr) (Expr, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("/: requires at least 1 argument")
+	}
+	first, err := toNum("/", args[0])
+	if err != nil {
+		return nil, err
+	}
+	if len(args) == 1 {
+		return num(1 / first), nil
+	}
+	for _, a := range args[1:] {
+		n, err := toNum("/", a)
+		if err != nil {
+			return nil, err
+		}
+		if n == 0 {
+			return nil, fmt.Errorf("/: division by zero")
+		}
+		first /= n
+	}
+	return num(first), nil
+}
+
+func builtinLess(args []Expr) (Expr, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("<: expected 2 arguments, got %d", len(args))
+	}
+	a, err := toNum("<", args[0])
+	if err != nil {
+		return nil, err
+	}
+	b, err := toNum("<", args[1])
+	if err != nil {
+		return nil, err
+	}
+	return boolean(a < b), nil
+}
+
+func builtinGreater(args []Expr) (Expr, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf(">: expected 2 arguments, got %d", len(args))
+	}
+	a, err := toNum(">", args[0])
+	if err != nil {
+		return nil, err
+	}
+	b, err := toNum(">", args[1])
+	if err != nil {
+		return nil, err
+	}
+	return boolean(a > b), nil
+}
+
+func builtinLessEq(args []Expr) (Expr, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("<=: expected 2 arguments, got %d", len(args))
+	}
+	a, err := toNum("<=", args[0])
+	if err != nil {
+		return nil, err
+	}
+	b, err := toNum("<=", args[1])
+	if err != nil {
+		return nil, err
+	}
+	return boolean(a <= b), nil
+}
+
+func builtinGreaterEq(args []Expr) (Expr, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf(">=: expected 2 arguments, got %d", len(args))
+	}
+	a, err := toNum(">=", args[0])
+	if err != nil {
+		return nil, err
+	}
+	b, err := toNum(">=", args[1])
+	if err != nil {
+		return nil, err
+	}
+	return boolean(a >= b), nil
+}
+
+func builtinNumEq(args []Expr) (Expr, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("=: expected 2 arguments, got %d", len(args))
+	}
+	a, err := toNum("=", args[0])
+	if err != nil {
+		return nil, err
+	}
+	b, err := toNum("=", args[1])
+	if err != nil {
+		return nil, err
+	}
+	return boolean(a == b), nil
+}
+
+func builtinNot(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("not: expected 1 argument, got %d", len(args))
+	}
+	if b, ok := args[0].(*BoolExpr); ok && !b.val {
+		return boolean(true), nil
+	}
+	return boolean(false), nil
+}
+
+func builtinCar(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("car: expected 1 argument, got %d", len(args))
+	}
+	lst, ok := args[0].(*ListExpr)
+	if !ok || len(lst.elements) == 0 {
+		return nil, fmt.Errorf("car: expected non-empty list, got %s", args[0].String())
+	}
+	return lst.elements[0], nil
+}
+
+func builtinCdr(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("cdr: expected 1 argument, got %d", len(args))
+	}
+	lst, ok := args[0].(*ListExpr)
+	if !ok || len(lst.elements) == 0 {
+		return nil, fmt.Errorf("cdr: expected non-empty list, got %s", args[0].String())
+	}
+	return &ListExpr{elements: lst.elements[1:]}, nil
+}
+
+func builtinCons(args []Expr) (Expr, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("cons: expected 2 arguments, got %d", len(args))
+	}
+	lst, ok := args[1].(*ListExpr)
+	if !ok {
+		return nil, fmt.Errorf("cons: second argument must be a list, got %s", args[1].String())
+	}
+	elems := make([]Expr, 1+len(lst.elements))
+	elems[0] = args[0]
+	copy(elems[1:], lst.elements)
+	return &ListExpr{elements: elems}, nil
+}
+
+func builtinEmpty(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("empty?: expected 1 argument, got %d", len(args))
+	}
+	lst, ok := args[0].(*ListExpr)
+	return boolean(ok && len(lst.elements) == 0), nil
+}
+
+func builtinList(args []Expr) (Expr, error) {
+	return &ListExpr{elements: args}, nil
+}
+
+func builtinDisplay(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("display: expected 1 argument, got %d", len(args))
+	}
+	// Strings display without surrounding quotes.
+	if s, ok := args[0].(*StringExpr); ok {
+		fmt.Print(s.val)
+	} else {
+		fmt.Print(args[0].String())
+	}
+	return &BoolExpr{}, nil
+}
+
+func builtinNewline(args []Expr) (Expr, error) {
+	if len(args) != 0 {
+		return nil, fmt.Errorf("newline: expected 0 arguments, got %d", len(args))
+	}
+	fmt.Println()
+	return &BoolExpr{}, nil
+}
