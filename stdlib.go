@@ -127,7 +127,7 @@ func loadLibEnv(libSpec string) (*Environment, error) {
 	}
 	// Evaluate in a child of a fresh base so builtins are available but
 	// user-defined names land only in libEnv (not mixed with builtins).
-	libEnv := NewEnvironment().Extend()
+	libEnv := NewEnvironment(StandardBuiltins(), StandardForms()).Extend()
 	if _, err := Eval(string(data), libEnv); err != nil {
 		return nil, fmt.Errorf("import %s: %w", libSpec, err)
 	}

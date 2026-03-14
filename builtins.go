@@ -1,28 +1,42 @@
 package glerp
 
-import "fmt"
+import (
+	"fmt"
+	"maps"
+)
 
-// builtins is the table of Go-implemented procedures loaded into NewEnvironment.
-var builtins = map[string]func([]Expr) (Expr, error){
-	"+":       builtinAdd,
-	"-":       builtinSub,
-	"*":       builtinMul,
-	"/":       builtinDiv,
-	"<":       builtinLess,
-	">":       builtinGreater,
-	"<=":      builtinLessEq,
-	">=":      builtinGreaterEq,
-	"=":       builtinNumEq,
-	"not":     builtinNot,
-	"car":     builtinCar,
-	"cdr":     builtinCdr,
-	"cons":    builtinCons,
-	"empty?":  builtinEmpty,
-	"list":    builtinList,
-	"display":    builtinDisplay,
-	"display-ln": builtinDisplayLn,
-	"newline":    builtinNewline,
-	"values":  builtinValues,
+// BuiltinFn is the signature for a Go-implemented Scheme procedure. Arguments
+// are already evaluated before the function is called.
+type BuiltinFn func([]Expr) (Expr, error)
+
+// StandardBuiltins returns the default set of built-in procedures, including
+// arithmetic, list operations, I/O, and time utilities. The returned map is a
+// fresh copy — callers may add, remove, or replace entries before passing it
+// to NewEnvironment.
+func StandardBuiltins() map[string]BuiltinFn {
+	m := map[string]BuiltinFn{
+		"+":          builtinAdd,
+		"-":          builtinSub,
+		"*":          builtinMul,
+		"/":          builtinDiv,
+		"<":          builtinLess,
+		">":          builtinGreater,
+		"<=":         builtinLessEq,
+		">=":         builtinGreaterEq,
+		"=":          builtinNumEq,
+		"not":        builtinNot,
+		"car":        builtinCar,
+		"cdr":        builtinCdr,
+		"cons":       builtinCons,
+		"empty?":     builtinEmpty,
+		"list":       builtinList,
+		"display":    builtinDisplay,
+		"display-ln": builtinDisplayLn,
+		"newline":    builtinNewline,
+		"values":     builtinValues,
+	}
+	maps.Copy(m, timeBuiltins())
+	return m
 }
 
 func toNum(name string, e Expr) (float64, error) {

@@ -14,7 +14,6 @@ import (
 // return Void(). The REPL suppresses printing VoidExpr values.
 func Void() Expr { return &VoidExpr{} }
 
-
 // Eval is a convenience function that parses and evaluates all top-level
 // expressions in src within env, returning the result of each one.
 func Eval(src string, env *Environment) ([]Expr, error) {

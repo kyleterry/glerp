@@ -39,11 +39,33 @@ func (e *Environment) Set(name string, val Expr) error {
 	return fmt.Errorf("unbound variable: %s", name)
 }
 
+// FormFn is the signature for a special form handler. Arguments are passed
+// unevaluated; the handler controls its own evaluation semantics.
+type FormFn func([]Expr, *Environment) (Expr, error)
+
 // RegisterForm binds name to a custom special form in this environment.
-// Unlike RegisterBuiltin / Bind with a BuiltinExpr, form handlers receive
-// their arguments unevaluated and are free to control evaluation themselves.
-func (e *Environment) RegisterForm(name string, fn func([]Expr, *Environment) (Expr, error)) {
+// Unlike Bind with a BuiltinExpr, form handlers receive their arguments
+// unevaluated and are free to control evaluation themselves.
+func (e *Environment) RegisterForm(name string, fn FormFn) {
 	e.Bind(name, &FormExpr{name: name, fn: fn})
+}
+
+// StandardForms returns the default set of special forms (define-values, case,
+// do, begin, cond, and, or, import, export). The returned map is a fresh copy
+// — callers may add, remove, or replace entries before passing it to
+// NewEnvironment.
+func StandardForms() map[string]FormFn {
+	return map[string]FormFn{
+		"define-values": evalDefineValues,
+		"case":          evalCase,
+		"do":            evalDo,
+		"begin":         evalBegin,
+		"cond":          evalCond,
+		"and":           evalAnd,
+		"or":            evalOr,
+		"import":        evalImport,
+		"export":        evalExport,
+	}
 }
 
 // Extend creates a child environment with this environment as the outer scope.
@@ -76,19 +98,16 @@ func (e *Environment) Exports() []string {
 	return e.exports
 }
 
-// NewEnvironment creates a root environment populated with standard builtins.
-func NewEnvironment() *Environment {
+// NewEnvironment creates a root environment populated with the given builtins
+// and special forms. Pass StandardBuiltins() and StandardForms() for the
+// default set, or customised maps to restrict or extend the environment.
+func NewEnvironment(builtins map[string]BuiltinFn, forms map[string]FormFn) *Environment {
 	env := &Environment{vals: make(map[string]Expr)}
 	for name, fn := range builtins {
 		env.Bind(name, &BuiltinExpr{name: name, fn: fn})
 	}
-	env.RegisterForm("define-values", evalDefineValues)
-	env.RegisterForm("case", evalCase)
-	env.RegisterForm("begin", evalBegin)
-	env.RegisterForm("cond", evalCond)
-	env.RegisterForm("and", evalAnd)
-	env.RegisterForm("or", evalOr)
-	env.RegisterForm("import", evalImport)
-	env.RegisterForm("export", evalExport)
+	for name, fn := range forms {
+		env.RegisterForm(name, fn)
+	}
 	return env
 }

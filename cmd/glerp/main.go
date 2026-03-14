@@ -40,7 +40,7 @@ func runFile(path string) {
 		os.Exit(1)
 	}
 
-	env := glerp.NewEnvironment()
+	env := glerp.NewEnvironment(glerp.StandardBuiltins(), glerp.StandardForms())
 	for _, expr := range exprs {
 		if _, err := expr.Eval(env); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -64,7 +64,7 @@ func runREPL() {
 
 	fmt.Println("glerp 0.1  —  Ctrl-D to exit")
 
-	env := glerp.NewEnvironment()
+	env := glerp.NewEnvironment(glerp.StandardBuiltins(), glerp.StandardForms())
 	var buf strings.Builder
 
 	for {

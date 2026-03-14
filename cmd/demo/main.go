@@ -266,7 +266,7 @@ func main() {
 
 	// Build an environment with standard builtins, then layer our DSL forms
 	// on top. EvalFile evaluates config.scm into this prepared environment.
-	env := glerp.NewEnvironment()
+	env := glerp.NewEnvironment(glerp.StandardBuiltins(), glerp.StandardForms())
 	registerForms(env, cfg)
 
 	if err := glerp.EvalFile("config.scm", env); err != nil {

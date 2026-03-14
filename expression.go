@@ -587,3 +587,101 @@ func evalOr(args []Expr, env *Environment) (Expr, error) {
 	}
 	return boolean(false), nil
 }
+
+// evalDo implements the R7RS do iteration form:
+//
+//	(do ((<var> <init> [<step>]) ...)
+//	    (<test> <result> ...)
+//	  <command> ...)
+//
+// Variables are bound to their <init> values, then each iteration evaluates
+// <test>: if truthy, the <result> expressions are evaluated and the last is
+// returned (void if none). Otherwise the <command> body is run for side
+// effects, then all <step> expressions are evaluated in parallel in the
+// current environment and the bindings are updated simultaneously.
+func evalDo(args []Expr, env *Environment) (Expr, error) {
+	if len(args) < 2 {
+		return nil, fmt.Errorf("do: requires variable specs and a termination clause")
+	}
+
+	varList, ok := args[0].(*ListExpr)
+	if !ok {
+		return nil, fmt.Errorf("do: first argument must be a list of variable specs")
+	}
+
+	type spec struct {
+		name string
+		step Expr // nil means no step — variable keeps its value
+	}
+	specs := make([]spec, len(varList.elements))
+
+	loopEnv := env.Extend()
+	for i, el := range varList.elements {
+		clause, ok := el.(*ListExpr)
+		if !ok || len(clause.elements) < 2 || len(clause.elements) > 3 {
+			return nil, fmt.Errorf("do: variable spec must be (var init) or (var init step), got %s", el.String())
+		}
+		sym, ok := clause.elements[0].(*SymbolExpr)
+		if !ok {
+			return nil, fmt.Errorf("do: variable name must be a symbol, got %s", clause.elements[0].String())
+		}
+		init, err := clause.elements[1].Eval(env)
+		if err != nil {
+			return nil, err
+		}
+		loopEnv.Bind(sym.val, init)
+		var step Expr
+		if len(clause.elements) == 3 {
+			step = clause.elements[2]
+		}
+		specs[i] = spec{name: sym.val, step: step}
+	}
+
+	term, ok := args[1].(*ListExpr)
+	if !ok || len(term.elements) == 0 {
+		return nil, fmt.Errorf("do: termination clause must be a non-empty list")
+	}
+	testExpr := term.elements[0]
+	resultExprs := term.elements[1:]
+
+	commands := args[2:]
+
+	for {
+		testVal, err := testExpr.Eval(loopEnv)
+		if err != nil {
+			return nil, err
+		}
+		// Truthy test: return result (void if no result expressions).
+		if b, ok := testVal.(*BoolExpr); !ok || b.val {
+			if len(resultExprs) == 0 {
+				return Void(), nil
+			}
+			return evalBody(resultExprs, loopEnv)
+		}
+
+		// Execute body commands for side effects.
+		for _, cmd := range commands {
+			if _, err := cmd.Eval(loopEnv); err != nil {
+				return nil, err
+			}
+		}
+
+		// Evaluate all step expressions in the current environment (parallel).
+		next := make([]Expr, len(specs))
+		for i, s := range specs {
+			if s.step != nil {
+				val, err := s.step.Eval(loopEnv)
+				if err != nil {
+					return nil, err
+				}
+				next[i] = val
+			} else {
+				next[i], _ = loopEnv.Find(s.name)
+			}
+		}
+		// Apply all updates simultaneously.
+		for i, s := range specs {
+			loopEnv.Bind(s.name, next[i])
+		}
+	}
+}

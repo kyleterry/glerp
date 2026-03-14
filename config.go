@@ -22,7 +22,7 @@ func NewConfig(env *Environment) *Config {
 // EvalFile evaluates all top-level expressions in the file at path within env.
 // Use this when you need to register custom forms before loading the config:
 //
-//	env := glerp.NewEnvironment()
+//	env := glerp.NewEnvironment(glerp.StandardBuiltins(), glerp.StandardForms())
 //	env.RegisterForm("server", ...)
 //	if err := glerp.EvalFile("config.scm", env); err != nil { ... }
 func EvalFile(path string, env *Environment) error {
@@ -54,7 +54,7 @@ func EvalFile(path string, env *Environment) error {
 // environment, returning a Config ready for typed extraction.
 // For form-based DSLs that need pre-registered forms, use EvalFile instead.
 func Load(path string) (*Config, error) {
-	env := NewEnvironment()
+	env := NewEnvironment(StandardBuiltins(), StandardForms())
 	if err := EvalFile(path, env); err != nil {
 		return nil, err
 	}
