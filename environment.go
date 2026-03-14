@@ -6,8 +6,9 @@ import "fmt"
 // optionally references an outer (enclosing) scope, forming the chain used for
 // variable lookup and lambda closures.
 type Environment struct {
-	vals  map[string]Expr
-	outer *Environment
+	vals    map[string]Expr
+	outer   *Environment
+	exports []string
 }
 
 // Bind creates or overwrites a binding in the current scope.
@@ -53,6 +54,28 @@ func (e *Environment) Extend() *Environment {
 	}
 }
 
+// Names returns the names bound directly in this scope, not inherited from
+// outer scopes. Used by the library loader to enumerate a library's definitions.
+func (e *Environment) Names() []string {
+	names := make([]string, 0, len(e.vals))
+	for name := range e.vals {
+		names = append(names, name)
+	}
+	return names
+}
+
+// DeclareExports records the set of names this scope explicitly exports.
+// Called by the (export ...) form inside a library file.
+func (e *Environment) DeclareExports(names []string) {
+	e.exports = names
+}
+
+// Exports returns the explicitly declared export list, or nil if the library
+// never called (export ...) and therefore exports all its definitions.
+func (e *Environment) Exports() []string {
+	return e.exports
+}
+
 // NewEnvironment creates a root environment populated with standard builtins.
 func NewEnvironment() *Environment {
 	env := &Environment{vals: make(map[string]Expr)}
@@ -66,5 +89,6 @@ func NewEnvironment() *Environment {
 	env.RegisterForm("and", evalAnd)
 	env.RegisterForm("or", evalOr)
 	env.RegisterForm("import", evalImport)
+	env.RegisterForm("export", evalExport)
 	return env
 }

@@ -9,9 +9,11 @@ import (
 	"go.e64ec.com/glerp/token"
 )
 
-// Void returns the canonical "no meaningful result" expression (#f).
-// Form handlers that have side effects but no return value should return Void().
-func Void() Expr { return &BoolExpr{} }
+// Void returns the canonical unspecified result for side-effecting forms.
+// Form handlers that have side effects but no meaningful return value should
+// return Void(). The REPL suppresses printing VoidExpr values.
+func Void() Expr { return &VoidExpr{} }
+
 
 // Eval is a convenience function that parses and evaluates all top-level
 // expressions in src within env, returning the result of each one.

@@ -1,4 +1,5 @@
 ; (scheme math) — mathematical utilities
+(export #t)
 
 ;; Returns the absolute value of x.
 (define (abs x)

@@ -227,6 +227,19 @@ func (e *ValuesExpr) String() string {
 // Values returns the individual expressions wrapped by this object.
 func (e *ValuesExpr) Values() []Expr { return e.vals }
 
+// VoidExpr is the unspecified return value produced by side-effecting forms
+// such as display, newline, define, set!, and import. It is distinct from #f
+// so the REPL and callers can suppress printing it.
+type VoidExpr struct{}
+
+func (e *VoidExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
+
+// Token returns an empty token; VoidExpr has no source position.
+func (e *VoidExpr) Token() token.Token { return token.Token{} }
+
+// String returns an empty string; void is intentionally invisible.
+func (e *VoidExpr) String() string { return "" }
+
 // BuiltinExpr is a Go-implemented procedure.
 type BuiltinExpr struct {
 	name string
@@ -275,7 +288,7 @@ func evalDefine(args []Expr, env *Environment) (Expr, error) {
 			return nil, err
 		}
 		env.Bind(target.val, val)
-		return val, nil
+		return Void(), nil
 	case *ListExpr:
 		// (define (name params...) body...) — sugar for (define name (lambda ...))
 		if len(target.elements) == 0 {
@@ -290,7 +303,7 @@ func evalDefine(args []Expr, env *Environment) (Expr, error) {
 			return nil, err
 		}
 		env.Bind(nameSym.val, lambda)
-		return lambda, nil
+		return Void(), nil
 	default:
 		return nil, fmt.Errorf("define: target must be a symbol or list, got %T", args[0])
 	}
@@ -332,7 +345,7 @@ func evalIf(args []Expr, env *Environment) (Expr, error) {
 		if len(args) == 3 {
 			return args[2].Eval(env)
 		}
-		return &BoolExpr{val: false}, nil
+		return Void(), nil
 	}
 	return args[1].Eval(env)
 }
@@ -405,11 +418,14 @@ func evalSetBang(args []Expr, env *Environment) (Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	return val, env.Set(sym.val, val)
+	if err := env.Set(sym.val, val); err != nil {
+		return nil, err
+	}
+	return Void(), nil
 }
 
 func evalBody(exprs []Expr, env *Environment) (Expr, error) {
-	var result Expr = &BoolExpr{}
+	result := Void()
 	for _, expr := range exprs {
 		var err error
 		result, err = expr.Eval(env)
@@ -450,14 +466,14 @@ func evalDefineValues(args []Expr, env *Environment) (Expr, error) {
 		for i, name := range syms {
 			env.Bind(name, mv.vals[i])
 		}
-		return result, nil
+		return Void(), nil
 	}
 	// Single (non-values) result: only valid with exactly one name.
 	if len(syms) != 1 {
 		return nil, fmt.Errorf("define-values: expected %d values, got 1", len(syms))
 	}
 	env.Bind(syms[0], result)
-	return result, nil
+	return Void(), nil
 }
 
 // eqv reports whether two expressions are equivalent in the sense of Scheme's

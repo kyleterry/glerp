@@ -1,4 +1,5 @@
 ; (scheme list) — list utilities
+(export #t)
 
 ;; Returns the number of elements in lst.
 (define (length lst)

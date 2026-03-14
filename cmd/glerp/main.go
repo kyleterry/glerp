@@ -121,7 +121,9 @@ func runREPL() {
 				fmt.Fprintf(os.Stderr, "error: %v\n", err)
 				continue
 			}
-			fmt.Println(result.String())
+			if _, isVoid := result.(*glerp.VoidExpr); !isVoid {
+				fmt.Println(result.String())
+			}
 		}
 	}
 }

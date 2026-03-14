@@ -64,7 +64,7 @@ func TestEval(t *testing.T) {
 		{"if false branch", "(if #f 1 2)", "2"},
 		{"if truthy", "(if 42 \"yes\" \"no\")", `"yes"`},
 		{"if no else true", "(if #t 99)", "99"},
-		{"if no else false", "(if #f 99)", "#f"},
+		{"if no else false", "(if #f 99)", ""},
 
 		// let
 		{"let basic", "(let ((x 3) (y 4)) (+ x y))", "7"},
@@ -111,7 +111,7 @@ func TestEval(t *testing.T) {
 		{"case match second", `(case 2 ((1) "one") ((2) "two"))`, `"two"`},
 		{"case multi-datum", `(case 3 ((1 2) "low") ((3 4) "high"))`, `"high"`},
 		{"case else", `(case 99 ((1) "one") (else "other"))`, `"other"`},
-		{"case no match", `(case 5 ((1) "one") ((2) "two"))`, `#f`},
+		{"case no match", `(case 5 ((1) "one") ((2) "two"))`, ``},
 		{"case key is expression", `(case (+ 1 1) ((1) "one") ((2) "two"))`, `"two"`},
 		{"case symbol datum", `(case 'b ((a) 1) ((b) 2) ((c) 3))`, `2`},
 		{"case bool datum", `(case #t ((#f) "no") ((#t) "yes"))`, `"yes"`},
@@ -141,13 +141,13 @@ func TestEval(t *testing.T) {
 		// begin
 		{"begin returns last", "(begin 1 2 3)", "3"},
 		{"begin side effects", "(define x 0) (begin (set! x 1) (set! x 2)) x", "2"},
-		{"begin empty", "(begin)", "#f"},
+		{"begin empty", "(begin)", ""},
 
 		// cond
 		{"cond first match", "(cond ((= 1 1) \"one\") ((= 1 2) \"two\"))", `"one"`},
 		{"cond second match", "(cond ((= 1 2) \"one\") ((= 1 1) \"two\"))", `"two"`},
 		{"cond else", "(cond ((= 1 2) \"no\") (else \"yes\"))", `"yes"`},
-		{"cond no match", "(cond (#f 1))", "#f"},
+		{"cond no match", "(cond (#f 1))", ""},
 
 		// and / or
 		{"and all true", "(and 1 2 3)", "3"},
@@ -157,27 +157,50 @@ func TestEval(t *testing.T) {
 		{"or all false", "(or #f #f)", "#f"},
 		{"or empty", "(or)", "#f"},
 
-		// stdlib: (scheme list)
-		{"import list length", "(import (scheme list)) (length '(a b c d))", "4"},
-		{"import list append", "(import (scheme list)) (append '(1 2) '(3 4))", "(1 2 3 4)"},
-		{"import list reverse", "(import (scheme list)) (reverse '(1 2 3))", "(3 2 1)"},
-		{"import list map", "(import (scheme list)) (map (lambda (x) (* x 2)) '(1 2 3))", "(2 4 6)"},
-		{"import list filter", "(import (scheme list)) (filter (lambda (x) (> x 2)) '(1 2 3 4))", "(3 4)"},
-		{"import list fold", "(import (scheme list)) (fold + 0 '(1 2 3 4 5))", "15"},
-		{"import list list-ref", "(import (scheme list)) (list-ref '(a b c) 1)", "b"},
-		{"import list list-tail", "(import (scheme list)) (list-tail '(a b c d) 2)", "(c d)"},
+		// stdlib: :scheme/list
+		{"import list length", "(import :scheme/list) (length '(a b c d))", "4"},
+		{"import list append", "(import :scheme/list) (append '(1 2) '(3 4))", "(1 2 3 4)"},
+		{"import list reverse", "(import :scheme/list) (reverse '(1 2 3))", "(3 2 1)"},
+		{"import list map", "(import :scheme/list) (map (lambda (x) (* x 2)) '(1 2 3))", "(2 4 6)"},
+		{"import list filter", "(import :scheme/list) (filter (lambda (x) (> x 2)) '(1 2 3 4))", "(3 4)"},
+		{"import list fold", "(import :scheme/list) (fold + 0 '(1 2 3 4 5))", "15"},
+		{"import list list-ref", "(import :scheme/list) (list-ref '(a b c) 1)", "b"},
+		{"import list list-tail", "(import :scheme/list) (list-tail '(a b c d) 2)", "(c d)"},
 
-		// stdlib: (scheme math)
-		{"import math abs pos", "(import (scheme math)) (abs 5)", "5"},
-		{"import math abs neg", "(import (scheme math)) (abs -7)", "7"},
-		{"import math max", "(import (scheme math)) (max 3 7)", "7"},
-		{"import math min", "(import (scheme math)) (min 3 7)", "3"},
-		{"import math square", "(import (scheme math)) (square 4)", "16"},
-		{"import math cube", "(import (scheme math)) (cube 3)", "27"},
-		{"import math average", "(import (scheme math)) (average 4 6)", "5"},
-		{"import math clamp lo", "(import (scheme math)) (clamp -5 0 10)", "0"},
-		{"import math clamp hi", "(import (scheme math)) (clamp 15 0 10)", "10"},
-		{"import math clamp in", "(import (scheme math)) (clamp 5 0 10)", "5"},
+		// stdlib: :scheme/math
+		{"import math abs pos", "(import :scheme/math) (abs 5)", "5"},
+		{"import math abs neg", "(import :scheme/math) (abs -7)", "7"},
+		{"import math max", "(import :scheme/math) (max 3 7)", "7"},
+		{"import math min", "(import :scheme/math) (min 3 7)", "3"},
+		{"import math square", "(import :scheme/math) (square 4)", "16"},
+		{"import math cube", "(import :scheme/math) (cube 3)", "27"},
+		{"import math average", "(import :scheme/math) (average 4 6)", "5"},
+		{"import math clamp lo", "(import :scheme/math) (clamp -5 0 10)", "0"},
+		{"import math clamp hi", "(import :scheme/math) (clamp 15 0 10)", "10"},
+		{"import math clamp in", "(import :scheme/math) (clamp 5 0 10)", "5"},
+
+		// multiple specs in one import
+		{"import multi", "(import :scheme/list :scheme/math) (square (length '(a b c)))", "9"},
+
+		// (only ...) selective import
+		{"import only", "(import (only :scheme/list map filter)) (map (lambda (x) (* x x)) '(1 2 3))", "(1 4 9)"},
+		{"import only excludes others", `
+			(import (only :scheme/list map))
+			(define length "not imported")
+			length
+		`, `"not imported"`},
+
+		// export form in user code
+		{"export declares exports", `
+			(define (double x) (* x 2))
+			(export double)
+			(double 5)
+		`, "10"},
+		{"export #t exports all", `
+			(define (double x) (* x 2))
+			(export #t)
+			(double 5)
+		`, "10"},
 	}
 
 	for _, tt := range tests {
@@ -204,6 +227,10 @@ func TestEvalErrors(t *testing.T) {
 		{"div by zero", "(/ 1 0)"},
 		{"not a procedure", "(1 2 3)"},
 		{"set! unbound", "(set! undefined-var 42)"},
+		{"import unknown library", "(import :scheme/nonexistent)"},
+		{"import unrecognized path", "(import foo/bar)"},
+		{"import only nonexported", "(import (only :scheme/list nonexistent-fn))"},
+		{"import only unknown modifier", "(import (xyzzy :scheme/list map))"},
 	}
 
 	for _, tt := range tests {

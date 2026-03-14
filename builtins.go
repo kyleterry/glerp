@@ -19,8 +19,9 @@ var builtins = map[string]func([]Expr) (Expr, error){
 	"cons":    builtinCons,
 	"empty?":  builtinEmpty,
 	"list":    builtinList,
-	"display": builtinDisplay,
-	"newline": builtinNewline,
+	"display":    builtinDisplay,
+	"display-ln": builtinDisplayLn,
+	"newline":    builtinNewline,
 	"values":  builtinValues,
 }
 
@@ -247,7 +248,20 @@ func builtinDisplay(args []Expr) (Expr, error) {
 	} else {
 		fmt.Print(args[0].String())
 	}
-	return &BoolExpr{}, nil
+	return Void(), nil
+}
+
+func builtinDisplayLn(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("display-ln: expected 1 argument, got %d", len(args))
+	}
+	// Strings display without surrounding quotes.
+	if s, ok := args[0].(*StringExpr); ok {
+		fmt.Println(s.val)
+	} else {
+		fmt.Println(args[0].String())
+	}
+	return Void(), nil
 }
 
 func builtinValues(args []Expr) (Expr, error) {
@@ -262,5 +276,5 @@ func builtinNewline(args []Expr) (Expr, error) {
 		return nil, fmt.Errorf("newline: expected 0 arguments, got %d", len(args))
 	}
 	fmt.Println()
-	return &BoolExpr{}, nil
+	return Void(), nil
 }
