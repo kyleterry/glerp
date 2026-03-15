@@ -157,6 +157,16 @@ func (e *ListExpr) Eval(env *Environment) (Expr, error) {
 		return f.fn(tail, env)
 	}
 
+	// Macro application: expand the transformer against the unevaluated call
+	// form, then evaluate the result in the same environment.
+	if transformer, ok := proc.(*SyntaxRulesExpr); ok {
+		expanded, err := transformer.expand(e)
+		if err != nil {
+			return nil, err
+		}
+		return expanded.Eval(env)
+	}
+
 	args := make([]Expr, len(tail))
 	for i, arg := range tail {
 		args[i], err = arg.Eval(env)

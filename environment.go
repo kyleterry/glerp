@@ -50,10 +50,9 @@ func (e *Environment) RegisterForm(name string, fn FormFn) {
 	e.Bind(name, &FormExpr{name: name, fn: fn})
 }
 
-// StandardForms returns the default set of special forms (define-values, case,
-// do, begin, cond, and, or, import, export). The returned map is a fresh copy
-// — callers may add, remove, or replace entries before passing it to
-// NewEnvironment.
+// StandardForms returns the default set of special forms. The returned map is
+// a fresh copy — callers may add, remove, or replace entries before passing it
+// to NewEnvironment.
 func StandardForms() map[string]FormFn {
 	return map[string]FormFn{
 		"define-values": evalDefineValues,
@@ -65,6 +64,8 @@ func StandardForms() map[string]FormFn {
 		"or":            evalOr,
 		"import":        evalImport,
 		"export":        evalExport,
+		"define-syntax": evalDefineSyntax,
+		"syntax-rules":  evalSyntaxRules,
 	}
 }
 

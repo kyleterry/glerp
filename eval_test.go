@@ -271,6 +271,81 @@ func TestEval(t *testing.T) {
 		{"import time time->string/fmt date", `(import :scheme/list :scheme/time) (time->string/fmt (make-time 2024 3 15 0 0 0) time-format/date)`, `"2024-03-15"`},
 		{"import time time-components length", `(import :scheme/list :scheme/time) (length (time-components (make-time 2024 1 1 0 0 0)))`, "7"},
 
+		// syntax macros: define-syntax / syntax-rules
+		{"macro simple substitution", `
+			(define-syntax my-inc
+			  (syntax-rules ()
+			    [(_ x) (+ x 1)]))
+			(my-inc 5)
+		`, "6"},
+		{"macro multiple rules", `
+			(define-syntax my-and2
+			  (syntax-rules ()
+			    [(_ a b) (if a b #f)]))
+			(my-and2 #t 99)
+		`, "99"},
+		{"macro literal keyword", `
+			(define-syntax my-case
+			  (syntax-rules (=>)
+			    [(_ val (test => result)) (if (= val test) result #f)]))
+			(my-case 3 (3 => 42))
+		`, "42"},
+		{"macro ellipsis body", `
+			(define-syntax my-begin
+			  (syntax-rules ()
+			    [(_ e) e]
+			    [(_ e1 e2 ...) (let ([_ e1]) (my-begin e2 ...))]))
+			(my-begin 1 2 3)
+		`, "3"},
+		{"macro ellipsis args", `
+			(define-syntax my-list
+			  (syntax-rules ()
+			    [(_ x ...) (list x ...)]))
+			(my-list 10 20 30)
+		`, "(10 20 30)"},
+		{"macro ellipsis zero args", `
+			(define-syntax my-list
+			  (syntax-rules ()
+			    [(_ x ...) (list x ...)]))
+			(my-list)
+		`, "()"},
+		{"macro nested ellipsis (my-let)", `
+			(define-syntax my-let
+			  (syntax-rules ()
+			    [(_ ((var val) ...) body ...)
+			     ((lambda (var ...) body ...) val ...)]))
+			(my-let ((x 3) (y 4)) (+ x y))
+		`, "7"},
+		{"macro recursive (my-and)", `
+			(define-syntax my-and
+			  (syntax-rules ()
+			    [(_) #t]
+			    [(_ e) e]
+			    [(_ e1 e2 ...) (if e1 (my-and e2 ...) #f)]))
+			(my-and 1 2 3)
+		`, "3"},
+		{"macro recursive short-circuit", `
+			(define-syntax my-and
+			  (syntax-rules ()
+			    [(_) #t]
+			    [(_ e) e]
+			    [(_ e1 e2 ...) (if e1 (my-and e2 ...) #f)]))
+			(my-and 1 #f 3)
+		`, "#f"},
+		{"macro hygiene (swap!)", `
+			(define-syntax swap!
+			  (syntax-rules ()
+			    [(_ a b)
+			     (let ([tmp a])
+			       (set! a b)
+			       (set! b tmp))]))
+			(define tmp 42)
+			(define x 1)
+			(define y 2)
+			(swap! x y)
+			(list tmp x y)
+		`, "(42 2 1)"},
+
 		// export form in user code
 		{"export declares exports", `
 			(define (double x) (* x 2))

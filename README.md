@@ -1,7 +1,7 @@
 # glerp
 
 A small Scheme interpreter for embedding in Go programs. It is designed to
-serve as a scripting and configuration layer inside larger applications -- you
+serve as a scripting and configuration layer inside larger applications. You
 can evaluate Scheme expressions, extend the language with Go-backed procedures,
 or build a fully custom DSL by registering your own special forms.
 
@@ -90,20 +90,20 @@ the library are bound in the current scope.
 (import :scheme/math)
 (import :scheme/time)
 
-; Selective import -- only bind the named symbols.
+; Selective import, only bind the named symbols.
 (import (only :scheme/list map filter))
 
 ; Multiple specs in one call.
 (import :scheme/list :scheme/math)
 ```
 
-**`:scheme/list`** -- `length`, `append`, `reverse`, `list-ref`, `list-tail`,
+**`:scheme/list`** `length`, `append`, `reverse`, `list-ref`, `list-tail`,
 `map`, `filter`, `for-each`, `fold`
 
-**`:scheme/math`** -- `abs`, `max`, `min`, `square`, `cube`, `average`,
+**`:scheme/math`** `abs`, `max`, `min`, `square`, `cube`, `average`,
 `clamp`
 
-**`:scheme/time`** -- `current-time`, `current-second`, `current-jiffy`,
+**`:scheme/time`** `current-time`, `current-second`, `current-jiffy`,
 `jiffies-per-second`, `make-time`, `time-components`, `time-year`,
 `time-month`, `time-day`, `time-hour`, `time-minute`, `time-second`,
 `time-weekday`, `time-weekday-name`, `time-month-name`, `seconds`, `minutes`,
@@ -260,7 +260,7 @@ func main() {
         }
     }
 
-    // (routes body...) -- evaluate each child route form
+    // (routes body...) - evaluate each child route form
     forms["routes"] = func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
         for _, arg := range args {
             if _, err := arg.Eval(env); err != nil {
@@ -282,7 +282,7 @@ func main() {
 ```
 
 Because form handlers receive unevaluated arguments, you can also accept bare
-symbols, nested sub-forms, or any mix of evaluated and literal syntax -- the
+symbols, nested sub-forms, or any mix of evaluated and literal syntax. The
 `cmd/demo` directory contains a more complete example with a server, database,
 and feature-flag DSL.
 
@@ -296,7 +296,7 @@ go install go.e64ec.com/glerp/cmd/glerp@latest
 ```
 
 ```
-glerp              # start the REPL
+glerp             # start the REPL
 glerp script.scm  # evaluate a file
 ```
 
