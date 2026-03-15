@@ -55,6 +55,13 @@ func (e *Environment) RegisterForm(name string, fn FormFn) {
 // to NewEnvironment.
 func StandardForms() map[string]FormFn {
 	return map[string]FormFn{
+		"define":        evalDefine,
+		"lambda":        evalLambda,
+		"if":            evalIf,
+		"let":           evalLet,
+		"let*":          evalLetStar,
+		"set!":          evalSetBang,
+		"quote":         evalQuote,
 		"define-values": evalDefineValues,
 		"case":          evalCase,
 		"do":            evalDo,
@@ -83,6 +90,23 @@ func (e *Environment) Names() []string {
 	names := make([]string, 0, len(e.vals))
 	for name := range e.vals {
 		names = append(names, name)
+	}
+	return names
+}
+
+// AllNames returns every name visible from this scope, including those
+// inherited from outer scopes. Inner bindings shadow outer ones; each name
+// appears at most once. Useful for tab completion.
+func (e *Environment) AllNames() []string {
+	seen := make(map[string]bool)
+	var names []string
+	for cur := e; cur != nil; cur = cur.outer {
+		for name := range cur.vals {
+			if !seen[name] {
+				seen[name] = true
+				names = append(names, name)
+			}
+		}
 	}
 	return names
 }

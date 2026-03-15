@@ -49,12 +49,54 @@ func runFile(path string) {
 	}
 }
 
+// replCompleter implements readline.AutoCompleter for the REPL.
+// It completes Scheme symbol names bound in env.
+type replCompleter struct {
+	env *glerp.Environment
+}
+
+// isSymbolRune reports whether r can appear in a Scheme symbol name.
+func isSymbolRune(r rune) bool {
+	if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' {
+		return true
+	}
+	switch r {
+	case '!', '$', '%', '&', '*', '+', '-', '.', '/', ':', '<', '=', '>', '?', '^', '_', '~':
+		return true
+	}
+	return false
+}
+
+// Do implements readline.AutoCompleter. It finds the symbol prefix before the
+// cursor and returns all matching completions.
+func (c *replCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
+	// Find the start of the current symbol token.
+	start := pos
+	for start > 0 && isSymbolRune(line[start-1]) {
+		start--
+	}
+	prefix := string(line[start:pos])
+	if prefix == "" {
+		return nil, 0
+	}
+
+	for _, name := range c.env.AllNames() {
+		if strings.HasPrefix(name, prefix) {
+			newLine = append(newLine, []rune(name[len(prefix):]))
+		}
+	}
+	return newLine, len(prefix)
+}
+
 func runREPL() {
+	env := glerp.NewEnvironment(glerp.StandardBuiltins(), glerp.StandardForms())
+
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:          "> ",
 		HistoryFile:     os.ExpandEnv("$HOME/.glerp_history"),
 		InterruptPrompt: "^C",
 		EOFPrompt:       "exit",
+		AutoComplete:    &replCompleter{env: env},
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "readline error: %v\n", err)
@@ -62,9 +104,7 @@ func runREPL() {
 	}
 	defer rl.Close() //nolint:errcheck
 
-	fmt.Println("glerp 0.1  —  Ctrl-D to exit")
-
-	env := glerp.NewEnvironment(glerp.StandardBuiltins(), glerp.StandardForms())
+	fmt.Println("glerp 0.1  --  Ctrl-D to exit")
 	var buf strings.Builder
 
 	for {

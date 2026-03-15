@@ -122,29 +122,6 @@ func (e *ListExpr) Eval(env *Environment) (Expr, error) {
 	head := e.elements[0]
 	tail := e.elements[1:]
 
-	// Dispatch special forms when the head is a keyword symbol.
-	if sym, ok := head.(*SymbolExpr); ok {
-		switch sym.tok.Kind {
-		case token.Define:
-			return evalDefine(tail, env)
-		case token.Lambda:
-			return evalLambda(tail, env)
-		case token.If:
-			return evalIf(tail, env)
-		case token.Let:
-			return evalLet(tail, env)
-		case token.LetStar:
-			return evalLetStar(tail, env)
-		case token.SetBang:
-			return evalSetBang(tail, env)
-		case token.QuoteLong:
-			if len(tail) != 1 {
-				return nil, fmt.Errorf("quote: expected 1 argument, got %d", len(tail))
-			}
-			return tail[0], nil
-		}
-	}
-
 	// Procedure application: evaluate head then args, then apply.
 	proc, err := head.Eval(env)
 	if err != nil {
@@ -414,6 +391,13 @@ func evalLetStar(args []Expr, env *Environment) (Expr, error) {
 		child.Bind(sym.val, val)
 	}
 	return evalBody(args[1:], child)
+}
+
+func evalQuote(args []Expr, _ *Environment) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("quote: expected 1 argument, got %d", len(args))
+	}
+	return args[0], nil
 }
 
 func evalSetBang(args []Expr, env *Environment) (Expr, error) {
