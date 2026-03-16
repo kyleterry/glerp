@@ -93,9 +93,11 @@ func (e *Environment) Extend() *Environment {
 // outer scopes. Used by the library loader to enumerate a library's definitions.
 func (e *Environment) Names() []string {
 	names := make([]string, 0, len(e.vals))
+
 	for name := range e.vals {
 		names = append(names, name)
 	}
+
 	return names
 }
 
@@ -105,6 +107,7 @@ func (e *Environment) Names() []string {
 func (e *Environment) AllNames() []string {
 	seen := make(map[string]bool)
 	var names []string
+
 	for cur := e; cur != nil; cur = cur.outer {
 		for name := range cur.vals {
 			if !seen[name] {
@@ -113,6 +116,7 @@ func (e *Environment) AllNames() []string {
 			}
 		}
 	}
+
 	return names
 }
 
@@ -133,11 +137,14 @@ func (e *Environment) Exports() []string {
 // default set, or customised maps to restrict or extend the environment.
 func NewEnvironment(builtins map[string]BuiltinFn, forms map[string]FormFn) *Environment {
 	env := &Environment{vals: make(map[string]Expr)}
+
 	for name, fn := range builtins {
 		env.Bind(name, &BuiltinExpr{name: name, fn: fn})
 	}
+
 	for name, fn := range forms {
 		env.RegisterForm(name, fn)
 	}
+
 	return env
 }

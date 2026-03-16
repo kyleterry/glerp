@@ -70,44 +70,44 @@ const (
 
 // This array's order must match the order of the TokenKind constants above.
 var tokens = [...]string{
-	Illegal:   "ILLEGAL",
-	EOF:       "EOF",
-	Comment:   ";",
-	Atom:      "ATOM",
-	Symbol:    "SYMBOL",
-	Number:    "NUMBER",
+	Illegal:      "ILLEGAL",
+	EOF:          "EOF",
+	Comment:      ";",
+	Atom:         "ATOM",
+	Symbol:       "SYMBOL",
+	Number:       "NUMBER",
 	String:       "STRING",
 	InterpString: "INTERP_STRING",
-	LParen:    "(",
-	LBrack:    "[",
-	LBrace:    "{",
-	RParen:    ")",
-	RBrack:    "]",
-	RBrace:    "}",
-	Quote:     "'",
-	DQuote:    "\"",
-	Backtick:  "`",
-	Comma:     ",",
-	CommaAt:   ",@",
-	Car:       "car",
-	Cdr:       "cdr",
-	Cons:      "cons",
-	Empty:     "empty?",
-	QuoteLong: "quote",
-	Define:    "define",
-	If:        "if",
-	Lambda:    "lambda",
-	Let:       "let",
-	LetStar:   "let*",
-	SetBang:   "set!",
-	BTrue:     "#t",
-	BFalse:    "#f",
-	Less:      "<",
-	Greater:   ">",
-	Add:       "+",
-	Subtract:  "-",
-	Multiply:  "*",
-	Divide:    "/",
+	LParen:       "(",
+	LBrack:       "[",
+	LBrace:       "{",
+	RParen:       ")",
+	RBrack:       "]",
+	RBrace:       "}",
+	Quote:        "'",
+	DQuote:       "\"",
+	Backtick:     "`",
+	Comma:        ",",
+	CommaAt:      ",@",
+	Car:          "car",
+	Cdr:          "cdr",
+	Cons:         "cons",
+	Empty:        "empty?",
+	QuoteLong:    "quote",
+	Define:       "define",
+	If:           "if",
+	Lambda:       "lambda",
+	Let:          "let",
+	LetStar:      "let*",
+	SetBang:      "set!",
+	BTrue:        "#t",
+	BFalse:       "#f",
+	Less:         "<",
+	Greater:      ">",
+	Add:          "+",
+	Subtract:     "-",
+	Multiply:     "*",
+	Divide:       "/",
 }
 
 // String returns the value size of the tokens mapping. This value is the
@@ -134,7 +134,9 @@ func (t TokenKind) IsLiteral() bool {
 func Lookup(s string) TokenKind {
 	if tok, ok := delimiters[s]; ok {
 		return tok
-	} else if tok, ok := keywords[s]; ok {
+	}
+
+	if tok, ok := keywords[s]; ok {
 		return tok
 	}
 
@@ -159,11 +161,13 @@ func IsKeyword(s string) bool {
 
 func init() {
 	keywords = make(map[string]TokenKind, keyword_end-keyword_beg)
+
 	for i := keyword_beg + 1; i < keyword_end; i++ {
 		keywords[tokens[i]] = i
 	}
 
 	delimiters = make(map[string]TokenKind, delimiter_end-delimiter_beg)
+
 	for i := delimiter_beg + 1; i < delimiter_end; i++ {
 		delimiters[tokens[i]] = i
 	}

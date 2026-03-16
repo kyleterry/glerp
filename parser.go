@@ -17,6 +17,7 @@ type Parser struct {
 // Run parses all top-level expressions from the token stream.
 func (p *Parser) Run() ([]Expr, error) {
 	var exprs []Expr
+
 	for p.lexer.PeekToken().Kind != token.EOF {
 		expr, err := p.parseExpr()
 		if err != nil {
@@ -24,6 +25,7 @@ func (p *Parser) Run() ([]Expr, error) {
 		}
 		exprs = append(exprs, expr)
 	}
+
 	return exprs, nil
 }
 
@@ -125,7 +127,9 @@ func (p *Parser) parseList() (Expr, error) {
 	if open.Kind == token.LBrack {
 		close = token.RBrack
 	}
+
 	var elements []Expr
+
 	for {
 		peek := p.lexer.PeekToken()
 		if peek.Kind == close {
@@ -141,6 +145,7 @@ func (p *Parser) parseList() (Expr, error) {
 		}
 		elements = append(elements, expr)
 	}
+
 	return &ListExpr{tok: open, elements: elements}, nil
 }
 
@@ -161,6 +166,7 @@ func splitInterp(s string) []interpSegment {
 	var segs []interpSegment
 	var buf strings.Builder
 	depth := 0
+
 	for _, r := range s {
 		switch {
 		case r == '{' && depth == 0:
@@ -183,9 +189,11 @@ func splitInterp(s string) []interpSegment {
 			buf.WriteRune(r)
 		}
 	}
+
 	if buf.Len() > 0 {
 		segs = append(segs, interpSegment{buf.String(), false})
 	}
+
 	return segs
 }
 
@@ -211,6 +219,7 @@ func parseInterpString(tok token.Token) (Expr, error) {
 	toStrSym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "->string"}, val: "->string"}
 
 	var parts []Expr
+
 	for _, seg := range segs {
 		if !seg.isExpr {
 			if seg.text != "" {
@@ -233,5 +242,6 @@ func parseInterpString(tok token.Token) (Expr, error) {
 	if len(parts) == 1 {
 		return parts[0], nil
 	}
+
 	return &ListExpr{tok: tok, elements: append([]Expr{appendSym}, parts...)}, nil
 }

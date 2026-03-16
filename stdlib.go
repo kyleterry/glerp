@@ -38,6 +38,7 @@ func evalExport(args []Expr, env *Environment) (Expr, error) {
 			return Void(), nil // #t: export all — leave exports as nil
 		}
 	}
+
 	names := make([]string, len(args))
 	for i, arg := range args {
 		sym, ok := arg.(*SymbolExpr)
@@ -47,6 +48,7 @@ func evalExport(args []Expr, env *Environment) (Expr, error) {
 		names[i] = sym.val
 	}
 	env.DeclareExports(names)
+
 	return Void(), nil
 }
 
@@ -59,11 +61,13 @@ func evalImport(args []Expr, env *Environment) (Expr, error) {
 	if len(args) == 0 {
 		return nil, fmt.Errorf("import: expected at least one import spec")
 	}
+
 	for _, arg := range args {
 		if err := applyImportSpec(arg, env); err != nil {
 			return nil, err
 		}
 	}
+
 	return Void(), nil
 }
 
@@ -71,6 +75,7 @@ func applyImportSpec(spec Expr, env *Environment) error {
 	switch s := spec.(type) {
 	case *SymbolExpr:
 		return importAll(s.val, env)
+
 	case *ListExpr:
 		if len(s.elements) == 0 {
 			return fmt.Errorf("import: empty import spec")
@@ -79,6 +84,7 @@ func applyImportSpec(spec Expr, env *Environment) error {
 		if !ok {
 			return fmt.Errorf("import: modifier must be a symbol, got %s", s.elements[0].String())
 		}
+
 		switch head.val {
 		case "only":
 			if len(s.elements) < 3 {
@@ -88,6 +94,7 @@ func applyImportSpec(spec Expr, env *Environment) error {
 			if !ok {
 				return fmt.Errorf("import: only: library spec must be a symbol, got %s", s.elements[1].String())
 			}
+
 			names := make([]string, len(s.elements)-2)
 			for i, el := range s.elements[2:] {
 				sym, ok := el.(*SymbolExpr)
@@ -96,10 +103,13 @@ func applyImportSpec(spec Expr, env *Environment) error {
 				}
 				names[i] = sym.val
 			}
+
 			return importOnly(libSym.val, names, env)
+
 		default:
 			return fmt.Errorf("import: unknown modifier %q (known: only)", head.val)
 		}
+
 	default:
 		return fmt.Errorf("import: invalid spec %s", spec.String())
 	}
@@ -110,10 +120,12 @@ func importAll(libSpec string, env *Environment) error {
 	if err != nil {
 		return err
 	}
+
 	for _, name := range exportedNames(libEnv) {
 		val, _ := libEnv.Find(name)
 		env.Bind(name, val)
 	}
+
 	return nil
 }
 
@@ -122,10 +134,12 @@ func importOnly(libSpec string, names []string, env *Environment) error {
 	if err != nil {
 		return err
 	}
+
 	exported := make(map[string]bool)
 	for _, n := range exportedNames(libEnv) {
 		exported[n] = true
 	}
+
 	for _, name := range names {
 		if !exported[name] {
 			return fmt.Errorf("import: %s does not export %q", libSpec, name)
@@ -133,6 +147,7 @@ func importOnly(libSpec string, names []string, env *Environment) error {
 		val, _ := libEnv.Find(name)
 		env.Bind(name, val)
 	}
+
 	return nil
 }
 
@@ -143,12 +158,14 @@ func loadLibEnv(libSpec string) (*Environment, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// Evaluate in a child of a fresh base so builtins are available but
 	// user-defined names land only in libEnv (not mixed with builtins).
 	libEnv := NewEnvironment(StandardBuiltins(), StandardForms()).Extend()
 	if _, err := Eval(string(data), libEnv); err != nil {
 		return nil, fmt.Errorf("import %s: %w", libSpec, err)
 	}
+
 	return libEnv, nil
 }
 
@@ -179,6 +196,7 @@ func readLibSource(spec string) ([]byte, error) {
 			}
 			return data, nil
 		}
+
 		path := "stdlib/" + tail + ".scm"
 		data, err := stdlibFS.ReadFile(path)
 		if err != nil {
@@ -186,6 +204,7 @@ func readLibSource(spec string) ([]byte, error) {
 		}
 		return data, nil
 	}
+
 	if strings.HasPrefix(spec, "./") || strings.HasPrefix(spec, "../") {
 		data, err := os.ReadFile(spec + ".scm")
 		if err != nil {
@@ -193,5 +212,6 @@ func readLibSource(spec string) ([]byte, error) {
 		}
 		return data, nil
 	}
+
 	return nil, fmt.Errorf("import: unrecognized path %q (use :lib/path or ./relative)", spec)
 }

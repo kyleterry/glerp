@@ -107,10 +107,13 @@ func (e *ListExpr) String() string {
 	if len(e.elements) == 0 {
 		return "()"
 	}
+
 	parts := make([]string, len(e.elements))
+
 	for i, el := range e.elements {
 		parts[i] = el.String()
 	}
+
 	return "(" + strings.Join(parts, " ") + ")"
 }
 
@@ -145,6 +148,7 @@ func (e *ListExpr) Eval(env *Environment) (Expr, error) {
 	}
 
 	args := make([]Expr, len(tail))
+
 	for i, arg := range tail {
 		args[i], err = arg.Eval(env)
 		if err != nil {
@@ -212,9 +216,11 @@ func (e *ValuesExpr) Token() token.Token { return token.Token{} }
 // String returns a readable representation of all contained values.
 func (e *ValuesExpr) String() string {
 	parts := make([]string, len(e.vals))
+
 	for i, v := range e.vals {
 		parts[i] = v.String()
 	}
+
 	return "(values " + strings.Join(parts, " ") + ")"
 }
 
@@ -260,13 +266,17 @@ func apply(proc Expr, args []Expr) (Expr, error) {
 		if p.rest != "" && len(args) < len(p.params) {
 			return nil, fmt.Errorf("%s: expected at least %d args, got %d", p.String(), len(p.params), len(args))
 		}
+
 		child := p.env.Extend()
+
 		for i, param := range p.params {
 			child.Bind(param, args[i])
 		}
+
 		if p.rest != "" {
 			child.Bind(p.rest, &ListExpr{elements: args[len(p.params):]})
 		}
+
 		return evalBody(p.body, child)
 	default:
 		return nil, fmt.Errorf("%s is not a procedure", proc.String())
@@ -277,32 +287,41 @@ func evalDefine(args []Expr, env *Environment) (Expr, error) {
 	if len(args) < 2 {
 		return nil, fmt.Errorf("define: too few arguments")
 	}
+
 	switch target := args[0].(type) {
 	case *SymbolExpr:
 		// (define name value)
 		if len(args) != 2 {
 			return nil, fmt.Errorf("define: variable form expects exactly 1 value")
 		}
+
 		val, err := args[1].Eval(env)
 		if err != nil {
 			return nil, err
 		}
+
 		env.Bind(target.val, val)
+
 		return Void(), nil
+
 	case *ListExpr:
 		// (define (name params...) body...) — sugar for (define name (lambda ...))
 		if len(target.elements) == 0 {
 			return nil, fmt.Errorf("define: missing function name")
 		}
+
 		nameSym, ok := target.elements[0].(*SymbolExpr)
 		if !ok {
 			return nil, fmt.Errorf("define: function name must be a symbol")
 		}
+
 		lambda, err := makeLambda(target.elements[1:], args[1:], env)
 		if err != nil {
 			return nil, err
 		}
+
 		env.Bind(nameSym.val, lambda)
+
 		return Void(), nil
 	default:
 		return nil, fmt.Errorf("define: target must be a symbol or list, got %T", args[0])
@@ -313,34 +332,42 @@ func evalLambda(args []Expr, env *Environment) (Expr, error) {
 	if len(args) < 2 {
 		return nil, fmt.Errorf("lambda: requires parameter list and body")
 	}
+
 	paramList, ok := args[0].(*ListExpr)
 	if !ok {
 		return nil, fmt.Errorf("lambda: parameters must be a list")
 	}
+
 	return makeLambda(paramList.elements, args[1:], env)
 }
 
 func makeLambda(paramExprs []Expr, body []Expr, env *Environment) (*LambdaExpr, error) {
 	var params []string
 	var rest string
+
 	for i, p := range paramExprs {
 		sym, ok := p.(*SymbolExpr)
 		if !ok {
 			return nil, fmt.Errorf("lambda: parameter must be a symbol, got %T", p)
 		}
+
 		if sym.val == "." {
 			if i != len(paramExprs)-2 {
 				return nil, fmt.Errorf("lambda: '.' must be followed by exactly one rest parameter")
 			}
+
 			restSym, ok := paramExprs[i+1].(*SymbolExpr)
 			if !ok {
 				return nil, fmt.Errorf("lambda: rest parameter must be a symbol")
 			}
+
 			rest = restSym.val
 			break
 		}
+
 		params = append(params, sym.val)
 	}
+
 	return &LambdaExpr{params: params, rest: rest, body: body, env: env}, nil
 }
 
@@ -348,10 +375,12 @@ func evalIf(args []Expr, env *Environment) (Expr, error) {
 	if len(args) < 2 || len(args) > 3 {
 		return nil, fmt.Errorf("if: expected 2 or 3 arguments, got %d", len(args))
 	}
+
 	cond, err := args[0].Eval(env)
 	if err != nil {
 		return nil, err
 	}
+
 	// In Scheme, only #f is falsy.
 	if b, ok := cond.(*BoolExpr); ok && !b.val {
 		if len(args) == 3 {
@@ -359,6 +388,7 @@ func evalIf(args []Expr, env *Environment) (Expr, error) {
 		}
 		return Void(), nil
 	}
+
 	return args[1].Eval(env)
 }
 
@@ -366,27 +396,34 @@ func evalLet(args []Expr, env *Environment) (Expr, error) {
 	if len(args) < 2 {
 		return nil, fmt.Errorf("let: requires bindings and body")
 	}
+
 	bindings, ok := args[0].(*ListExpr)
 	if !ok {
 		return nil, fmt.Errorf("let: bindings must be a list")
 	}
+
 	child := env.Extend()
+
 	for _, b := range bindings.elements {
 		pair, ok := b.(*ListExpr)
 		if !ok || len(pair.elements) != 2 {
 			return nil, fmt.Errorf("let: each binding must be (name value)")
 		}
+
 		sym, ok := pair.elements[0].(*SymbolExpr)
 		if !ok {
 			return nil, fmt.Errorf("let: binding name must be a symbol")
 		}
+
 		// Evaluate binding values in the outer env (parallel binding).
 		val, err := pair.elements[1].Eval(env)
 		if err != nil {
 			return nil, err
 		}
+
 		child.Bind(sym.val, val)
 	}
+
 	return evalBody(args[1:], child)
 }
 
@@ -394,27 +431,34 @@ func evalLetStar(args []Expr, env *Environment) (Expr, error) {
 	if len(args) < 2 {
 		return nil, fmt.Errorf("let*: requires bindings and body")
 	}
+
 	bindings, ok := args[0].(*ListExpr)
 	if !ok {
 		return nil, fmt.Errorf("let*: bindings must be a list")
 	}
+
 	child := env.Extend()
+
 	for _, b := range bindings.elements {
 		pair, ok := b.(*ListExpr)
 		if !ok || len(pair.elements) != 2 {
 			return nil, fmt.Errorf("let*: each binding must be (name value)")
 		}
+
 		sym, ok := pair.elements[0].(*SymbolExpr)
 		if !ok {
 			return nil, fmt.Errorf("let*: binding name must be a symbol")
 		}
+
 		// Evaluate each binding in the growing child env (sequential binding).
 		val, err := pair.elements[1].Eval(child)
 		if err != nil {
 			return nil, err
 		}
+
 		child.Bind(sym.val, val)
 	}
+
 	return evalBody(args[1:], child)
 }
 
@@ -439,10 +483,12 @@ func isTagged(expr Expr, name string) ([]Expr, bool) {
 	if !ok || len(list.elements) == 0 {
 		return nil, false
 	}
+
 	sym, ok := list.elements[0].(*SymbolExpr)
 	if !ok || sym.val != name {
 		return nil, false
 	}
+
 	return list.elements[1:], true
 }
 
@@ -483,37 +529,46 @@ func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
 	}
 
 	var result []Expr
+
 	for _, el := range list.elements {
 		if spliceArgs, ok := isTagged(el, "unquote-splicing"); ok {
 			if len(spliceArgs) != 1 {
 				return nil, fmt.Errorf("unquote-splicing: expected 1 argument, got %d", len(spliceArgs))
 			}
+
 			if depth == 0 {
 				val, err := spliceArgs[0].Eval(env)
 				if err != nil {
 					return nil, err
 				}
+
 				spliceList, ok := val.(*ListExpr)
 				if !ok {
 					return nil, fmt.Errorf("unquote-splicing: expected a list, got %s", val.String())
 				}
+
 				result = append(result, spliceList.elements...)
 				continue
 			}
+
 			expanded, err := expandQQ(spliceArgs[0], depth-1, env)
 			if err != nil {
 				return nil, err
 			}
+
 			sym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "unquote-splicing"}, val: "unquote-splicing"}
 			result = append(result, &ListExpr{tok: el.Token(), elements: []Expr{sym, expanded}})
 			continue
 		}
+
 		expanded, err := expandQQ(el, depth, env)
 		if err != nil {
 			return nil, err
 		}
+
 		result = append(result, expanded)
 	}
+
 	return &ListExpr{tok: list.tok, elements: result}, nil
 }
 
@@ -521,22 +576,27 @@ func evalSetBang(args []Expr, env *Environment) (Expr, error) {
 	if len(args) != 2 {
 		return nil, fmt.Errorf("set!: expected 2 arguments, got %d", len(args))
 	}
+
 	sym, ok := args[0].(*SymbolExpr)
 	if !ok {
 		return nil, fmt.Errorf("set!: target must be a symbol")
 	}
+
 	val, err := args[1].Eval(env)
 	if err != nil {
 		return nil, err
 	}
+
 	if err := env.Set(sym.val, val); err != nil {
 		return nil, err
 	}
+
 	return Void(), nil
 }
 
 func evalBody(exprs []Expr, env *Environment) (Expr, error) {
 	result := Void()
+
 	for _, expr := range exprs {
 		var err error
 		result, err = expr.Eval(env)
@@ -544,6 +604,7 @@ func evalBody(exprs []Expr, env *Environment) (Expr, error) {
 			return nil, err
 		}
 	}
+
 	return result, nil
 }
 
@@ -554,11 +615,14 @@ func evalDefineValues(args []Expr, env *Environment) (Expr, error) {
 	if len(args) != 2 {
 		return nil, fmt.Errorf("define-values: expected name list and expression, got %d args", len(args))
 	}
+
 	nameList, ok := args[0].(*ListExpr)
 	if !ok {
 		return nil, fmt.Errorf("define-values: first argument must be a list of names")
 	}
+
 	syms := make([]string, len(nameList.elements))
+
 	for i, el := range nameList.elements {
 		sym, ok := el.(*SymbolExpr)
 		if !ok {
@@ -566,24 +630,31 @@ func evalDefineValues(args []Expr, env *Environment) (Expr, error) {
 		}
 		syms[i] = sym.val
 	}
+
 	result, err := args[1].Eval(env)
 	if err != nil {
 		return nil, err
 	}
+
 	if mv, ok := result.(*ValuesExpr); ok {
 		if len(mv.vals) != len(syms) {
 			return nil, fmt.Errorf("define-values: expected %d values, got %d", len(syms), len(mv.vals))
 		}
+
 		for i, name := range syms {
 			env.Bind(name, mv.vals[i])
 		}
+
 		return Void(), nil
 	}
+
 	// Single (non-values) result: only valid with exactly one name.
 	if len(syms) != 1 {
 		return nil, fmt.Errorf("define-values: expected %d values, got 1", len(syms))
 	}
+
 	env.Bind(syms[0], result)
+
 	return Void(), nil
 }
 
@@ -615,30 +686,37 @@ func evalCase(args []Expr, env *Environment) (Expr, error) {
 	if len(args) < 2 {
 		return nil, fmt.Errorf("case: requires a key expression and at least one clause")
 	}
+
 	key, err := args[0].Eval(env)
 	if err != nil {
 		return nil, err
 	}
+
 	for _, arg := range args[1:] {
 		clause, ok := arg.(*ListExpr)
 		if !ok || len(clause.elements) < 2 {
 			return nil, fmt.Errorf("case: invalid clause %s", arg.String())
 		}
+
 		head := clause.elements[0]
 		body := clause.elements[1:]
+
 		if sym, ok := head.(*SymbolExpr); ok && sym.val == "else" {
 			return evalBody(body, env)
 		}
+
 		datums, ok := head.(*ListExpr)
 		if !ok {
 			return nil, fmt.Errorf("case: clause head must be a datum list or else, got %s", head.String())
 		}
+
 		for _, datum := range datums.elements {
 			if eqv(key, datum) {
 				return evalBody(body, env)
 			}
 		}
 	}
+
 	return Void(), nil
 }
 
@@ -655,34 +733,43 @@ func evalCond(args []Expr, env *Environment) (Expr, error) {
 		if !ok || len(clause.elements) < 2 {
 			return nil, fmt.Errorf("cond: invalid clause %s", arg.String())
 		}
+
 		test := clause.elements[0]
 		body := clause.elements[1:]
+
 		if sym, ok := test.(*SymbolExpr); ok && sym.val == "else" {
 			return evalBody(body, env)
 		}
+
 		result, err := test.Eval(env)
 		if err != nil {
 			return nil, err
 		}
+
 		if b, ok := result.(*BoolExpr); !ok || b.val {
 			return evalBody(body, env)
 		}
 	}
+
 	return Void(), nil
 }
 
 func evalAnd(args []Expr, env *Environment) (Expr, error) {
 	var result Expr = boolean(true)
+
 	for _, arg := range args {
 		val, err := arg.Eval(env)
 		if err != nil {
 			return nil, err
 		}
+
 		if b, ok := val.(*BoolExpr); ok && !b.val {
 			return boolean(false), nil
 		}
+
 		result = val
 	}
+
 	return result, nil
 }
 
@@ -692,10 +779,12 @@ func evalOr(args []Expr, env *Environment) (Expr, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		if b, ok := val.(*BoolExpr); !ok || b.val {
 			return val, nil
 		}
 	}
+
 	return boolean(false), nil
 }
 
@@ -725,26 +814,31 @@ func evalDo(args []Expr, env *Environment) (Expr, error) {
 		step Expr // nil means no step — variable keeps its value
 	}
 	specs := make([]spec, len(varList.elements))
-
 	loopEnv := env.Extend()
+
 	for i, el := range varList.elements {
 		clause, ok := el.(*ListExpr)
 		if !ok || len(clause.elements) < 2 || len(clause.elements) > 3 {
 			return nil, fmt.Errorf("do: variable spec must be (var init) or (var init step), got %s", el.String())
 		}
+
 		sym, ok := clause.elements[0].(*SymbolExpr)
 		if !ok {
 			return nil, fmt.Errorf("do: variable name must be a symbol, got %s", clause.elements[0].String())
 		}
+
 		init, err := clause.elements[1].Eval(env)
 		if err != nil {
 			return nil, err
 		}
+
 		loopEnv.Bind(sym.val, init)
+
 		var step Expr
 		if len(clause.elements) == 3 {
 			step = clause.elements[2]
 		}
+
 		specs[i] = spec{name: sym.val, step: step}
 	}
 

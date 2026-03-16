@@ -38,15 +38,18 @@ func EvalFile(path string, env *Environment) error {
 	}
 
 	p := NewParser(lexer)
+
 	exprs, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("parse: %w", err)
 	}
+
 	for _, expr := range exprs {
 		if _, err := expr.Eval(env); err != nil {
 			return fmt.Errorf("eval: %w", err)
 		}
 	}
+
 	return nil
 }
 
@@ -55,9 +58,11 @@ func EvalFile(path string, env *Environment) error {
 // For form-based DSLs that need pre-registered forms, use EvalFile instead.
 func Load(path string) (*Config, error) {
 	env := NewEnvironment(StandardBuiltins(), StandardForms())
+
 	if err := EvalFile(path, env); err != nil {
 		return nil, err
 	}
+
 	return NewConfig(env), nil
 }
 
@@ -67,10 +72,12 @@ func (c *Config) String(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	s, ok := expr.(*StringExpr)
 	if !ok {
 		return "", fmt.Errorf("config: %s is not a string (got %s)", name, expr.String())
 	}
+
 	return s.val, nil
 }
 
@@ -80,13 +87,16 @@ func (c *Config) Int(name string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	n, ok := expr.(*NumberExpr)
 	if !ok {
 		return 0, fmt.Errorf("config: %s is not a number (got %s)", name, expr.String())
 	}
+
 	if n.val != math.Trunc(n.val) {
 		return 0, fmt.Errorf("config: %s is not an integer (%s)", name, expr.String())
 	}
+
 	return int(n.val), nil
 }
 
@@ -96,10 +106,12 @@ func (c *Config) Float(name string) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	n, ok := expr.(*NumberExpr)
 	if !ok {
 		return 0, fmt.Errorf("config: %s is not a number (got %s)", name, expr.String())
 	}
+
 	return n.val, nil
 }
 
@@ -109,10 +121,12 @@ func (c *Config) Bool(name string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	b, ok := expr.(*BoolExpr)
 	if !ok {
 		return false, fmt.Errorf("config: %s is not a boolean (got %s)", name, expr.String())
 	}
+
 	return b.val, nil
 }
 
@@ -122,10 +136,12 @@ func (c *Config) List(name string) (*ListExpr, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	lst, ok := expr.(*ListExpr)
 	if !ok {
 		return nil, fmt.Errorf("config: %s is not a list (got %s)", name, expr.String())
 	}
+
 	return lst, nil
 }
 
@@ -135,7 +151,9 @@ func (c *Config) Strings(name string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	result := make([]string, len(lst.elements))
+
 	for i, el := range lst.elements {
 		s, ok := el.(*StringExpr)
 		if !ok {
@@ -143,5 +161,6 @@ func (c *Config) Strings(name string) ([]string, error) {
 		}
 		result[i] = s.val
 	}
+
 	return result, nil
 }

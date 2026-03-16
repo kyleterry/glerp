@@ -24,12 +24,15 @@ func Eval(src string, env *Environment) ([]Expr, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	p := NewParser(lexer)
 	exprs, err := p.Run()
 	if err != nil {
 		return nil, err
 	}
+
 	results := make([]Expr, 0, len(exprs))
+
 	for _, expr := range exprs {
 		result, err := expr.Eval(env)
 		if err != nil {
@@ -37,5 +40,6 @@ func Eval(src string, env *Environment) ([]Expr, error) {
 		}
 		results = append(results, result)
 	}
+
 	return results, nil
 }

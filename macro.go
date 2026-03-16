@@ -51,13 +51,16 @@ func (e *SyntaxRulesExpr) expand(form *ListExpr) (Expr, error) {
 		if !ok {
 			continue
 		}
+
 		b := newMacroBindings()
+
 		// The first element of each pattern is the macro keyword (or _).
 		// Skip it in both the pattern and the call form.
 		if matchList(patList.elements[1:], form.elements[1:], e.literals, b) {
 			return expandTemplate(rule.template, b, e.literals)
 		}
 	}
+
 	return nil, fmt.Errorf("syntax: no matching pattern for %s", form.String())
 }
 
@@ -131,16 +134,19 @@ func isEllipsis(e Expr) bool {
 // elements. An element followed by ... matches zero or more repetitions.
 func matchList(patElems, formElems []Expr, literals map[string]bool, b *macroBindings) bool {
 	pi, fi := 0, 0
+
 	for pi < len(patElems) {
 		if pi+1 < len(patElems) && isEllipsis(patElems[pi+1]) {
 			subPat := patElems[pi]
 			patVars := collectPatVars(subPat, literals)
+
 			// Initialise slots so zero-match ellipsis variables still exist.
 			for _, v := range patVars {
 				if _, exists := b.ellipsis[v]; !exists {
 					b.ellipsis[v] = []Expr{}
 				}
 			}
+
 			// Consume as many form elements as possible while leaving enough
 			// for the remaining (non-ellipsis) pattern elements.
 			remaining := len(patElems) - (pi + 2)
@@ -148,6 +154,7 @@ func matchList(patElems, formElems []Expr, literals map[string]bool, b *macroBin
 			if canConsume < 0 {
 				return false
 			}
+
 			for j := range canConsume {
 				sub := newMacroBindings()
 				if !matchPattern(subPat, formElems[fi+j], literals, sub) {
@@ -157,10 +164,12 @@ func matchList(patElems, formElems []Expr, literals map[string]bool, b *macroBin
 					b.ellipsis[v] = append(b.ellipsis[v], sub.vars[v])
 				}
 			}
+
 			fi += canConsume
 			pi += 2 // advance past subPat and "..."
 			continue
 		}
+
 		if fi >= len(formElems) {
 			return false
 		}
@@ -170,6 +179,7 @@ func matchList(patElems, formElems []Expr, literals map[string]bool, b *macroBin
 		pi++
 		fi++
 	}
+
 	return fi == len(formElems)
 }
 
@@ -196,6 +206,7 @@ func collectPatVars(pat Expr, literals map[string]bool) []string {
 func expandTemplate(template Expr, b *macroBindings, literals map[string]bool) (Expr, error) {
 	renames := make(map[string]string)
 	collectBindingRenames(template, b, renames)
+
 	return doExpand(template, b, literals, renames)
 }
 
@@ -289,6 +300,7 @@ func doExpand(template Expr, b *macroBindings, literals map[string]bool, renames
 
 	case *ListExpr:
 		result := make([]Expr, 0, len(t.elements))
+
 		for i := 0; i < len(t.elements); i++ {
 			if i+1 < len(t.elements) && isEllipsis(t.elements[i+1]) {
 				// Ellipsis expansion: repeat the sub-template once per match.
@@ -296,12 +308,14 @@ func doExpand(template Expr, b *macroBindings, literals map[string]bool, renames
 				if len(evars) == 0 {
 					return nil, fmt.Errorf("syntax: no ellipsis variable in ellipsis template position")
 				}
+
 				count := len(b.ellipsis[evars[0]])
 				for _, v := range evars[1:] {
 					if len(b.ellipsis[v]) != count {
 						return nil, fmt.Errorf("syntax: ellipsis variables %q and %q have different match counts", evars[0], v)
 					}
 				}
+
 				for j := range count {
 					sub := &macroBindings{
 						vars:     copyBindings(b.vars),
@@ -362,20 +376,25 @@ func evalDefineSyntax(args []Expr, env *Environment) (Expr, error) {
 	if len(args) != 2 {
 		return nil, fmt.Errorf("define-syntax: expected (define-syntax name transformer), got %d args", len(args))
 	}
+
 	nameSym, ok := args[0].(*SymbolExpr)
 	if !ok {
 		return nil, fmt.Errorf("define-syntax: name must be a symbol, got %s", args[0].String())
 	}
+
 	transformer, err := args[1].Eval(env)
 	if err != nil {
 		return nil, err
 	}
+
 	rules, ok := transformer.(*SyntaxRulesExpr)
 	if !ok {
 		return nil, fmt.Errorf("define-syntax: transformer must be a syntax-rules expression, got %s", transformer.String())
 	}
+
 	rules.name = nameSym.val
 	env.Bind(nameSym.val, rules)
+
 	return Void(), nil
 }
 
@@ -385,10 +404,12 @@ func evalSyntaxRules(args []Expr, env *Environment) (Expr, error) {
 	if len(args) < 1 {
 		return nil, fmt.Errorf("syntax-rules: expected (syntax-rules (literals ...) rule ...)")
 	}
+
 	litList, ok := args[0].(*ListExpr)
 	if !ok {
 		return nil, fmt.Errorf("syntax-rules: first argument must be a list of literals, got %s", args[0].String())
 	}
+
 	literals := make(map[string]bool, len(litList.elements))
 	for _, el := range litList.elements {
 		sym, ok := el.(*SymbolExpr)
@@ -397,6 +418,7 @@ func evalSyntaxRules(args []Expr, env *Environment) (Expr, error) {
 		}
 		literals[sym.val] = true
 	}
+
 	rules := make([]macroRule, 0, len(args)-1)
 	for _, arg := range args[1:] {
 		pair, ok := arg.(*ListExpr)
@@ -408,5 +430,6 @@ func evalSyntaxRules(args []Expr, env *Environment) (Expr, error) {
 			template: pair.elements[1],
 		})
 	}
+
 	return &SyntaxRulesExpr{literals: literals, rules: rules}, nil
 }
