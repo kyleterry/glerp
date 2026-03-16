@@ -16,18 +16,28 @@ func main() {
 		runFile(os.Args[1])
 		return
 	}
+	if fi, err := os.Stdin.Stat(); err == nil && fi.Mode()&os.ModeCharDevice == 0 {
+		runFile("-")
+		return
+	}
 	runREPL()
 }
 
 func runFile(path string) {
-	f, err := os.Open(path)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+	var r io.Reader
+	if path == "-" {
+		r = os.Stdin
+	} else {
+		f, err := os.Open(path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		defer f.Close() //nolint:errcheck
+		r = f
 	}
-	defer f.Close() //nolint:errcheck
 
-	lexer, err := token.NewLexer(f)
+	lexer, err := token.NewLexer(r)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "lexer error: %v\n", err)
 		os.Exit(1)
@@ -76,9 +86,6 @@ func (c *replCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) 
 		start--
 	}
 	prefix := string(line[start:pos])
-	if prefix == "" {
-		return nil, 0
-	}
 
 	for _, name := range c.env.AllNames() {
 		if strings.HasPrefix(name, prefix) {
