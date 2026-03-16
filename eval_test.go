@@ -121,6 +121,72 @@ func TestEval(t *testing.T) {
 		{"list", "(list 1 2 3)", "(1 2 3)"},
 		{"list empty", "(list)", "()"},
 
+		// type predicates
+		{"null? empty", "(null? '())", "#t"},
+		{"null? non-empty", "(null? '(1))", "#f"},
+		{"null? non-list", "(null? 42)", "#f"},
+		{"pair? non-empty", "(pair? '(1 2))", "#t"},
+		{"pair? empty", "(pair? '())", "#f"},
+		{"list? list", "(list? '(1 2))", "#t"},
+		{"list? empty", "(list? '())", "#t"},
+		{"list? non-list", "(list? 42)", "#f"},
+		{"number? num", "(number? 42)", "#t"},
+		{"number? str", `(number? "hello")`, "#f"},
+		{"string? str", `(string? "hello")`, "#t"},
+		{"string? num", "(string? 42)", "#f"},
+		{"boolean? bool", "(boolean? #t)", "#t"},
+		{"boolean? num", "(boolean? 42)", "#f"},
+		{"symbol? sym", "(symbol? 'foo)", "#t"},
+		{"symbol? num", "(symbol? 42)", "#f"},
+		{"procedure? lambda", "(procedure? (lambda (x) x))", "#t"},
+		{"procedure? builtin", "(procedure? +)", "#t"},
+		{"procedure? num", "(procedure? 42)", "#f"},
+
+		// eq? / equal?
+		{"eq? same num", "(eq? 3 3)", "#t"},
+		{"eq? diff num", "(eq? 3 4)", "#f"},
+		{"eq? same str", `(eq? "a" "a")`, "#t"},
+		{"equal? same list", "(equal? '(1 2 3) '(1 2 3))", "#t"},
+		{"equal? diff list", "(equal? '(1 2 3) '(1 2 4))", "#f"},
+		{"equal? nested list", "(equal? '(1 (2 3)) '(1 (2 3)))", "#t"},
+		{"equal? atom", "(equal? 42 42)", "#t"},
+
+		// modulo / remainder
+		{"modulo positive", "(modulo 10 3)", "1"},
+		{"modulo negative dividend", "(modulo -10 3)", "2"},
+		{"modulo negative divisor", "(modulo 10 -3)", "-2"},
+		{"remainder positive", "(remainder 10 3)", "1"},
+		{"remainder negative dividend", "(remainder -10 3)", "-1"},
+
+		// core prelude functions
+		{"zero? true", "(zero? 0)", "#t"},
+		{"zero? false", "(zero? 5)", "#f"},
+		{"positive? true", "(positive? 3)", "#t"},
+		{"positive? false", "(positive? -1)", "#f"},
+		{"negative? true", "(negative? -3)", "#t"},
+		{"negative? false", "(negative? 1)", "#f"},
+		{"even? true", "(even? 4)", "#t"},
+		{"even? false", "(even? 3)", "#f"},
+		{"odd? true", "(odd? 3)", "#t"},
+		{"odd? false", "(odd? 4)", "#f"},
+		{"prelude abs positive", "(abs 5)", "5"},
+		{"prelude abs negative", "(abs -7)", "7"},
+		{"prelude max", "(max 3 7)", "7"},
+		{"prelude min", "(min 3 7)", "3"},
+		{"prelude square", "(square 4)", "16"},
+
+		// core prelude list functions (available without import)
+		{"prelude length", "(length '(a b c))", "3"},
+		{"prelude append", "(append '(1 2) '(3 4))", "(1 2 3 4)"},
+		{"prelude reverse", "(reverse '(3 2 1))", "(1 2 3)"},
+		{"prelude map", "(map (lambda (x) (* x 2)) '(1 2 3))", "(2 4 6)"},
+		{"prelude filter", "(filter (lambda (x) (> x 2)) '(1 2 3 4))", "(3 4)"},
+		{"prelude fold", "(fold + 0 '(1 2 3 4 5))", "15"},
+
+		// glerp prelude: empty? alias
+		{"empty? alias true", "(empty? '())", "#t"},
+		{"empty? alias false", "(empty? '(1))", "#f"},
+
 		// do
 		{"do basic counter", `
 			(do [(i 0 (+ i 1))]
@@ -246,46 +312,48 @@ func TestEval(t *testing.T) {
 		{"import math clamp in", "(import :scheme/math) (clamp 5 0 10)", "5"},
 
 		// multiple specs in one import
-		{"import multi", "(import :scheme/list :scheme/math) (square (length '(a b c)))", "9"},
+		{"import multi", "(import :scheme/list :scheme/math) (cube (length '(a b c)))", "27"},
 
 		// (only ...) selective import
-		{"import only", "(import (only :scheme/list map filter)) (map (lambda (x) (* x x)) '(1 2 3))", "(1 4 9)"},
+		{"import only", "(import (only :core/list map filter)) (map (lambda (x) (* x x)) '(1 2 3))", "(1 4 9)"},
 		{"import only excludes others", `
-			(import (only :scheme/list map))
-			(define length "not imported")
-			length
+			(import (only :scheme/math cube))
+			(define average "not imported")
+			average
 		`, `"not imported"`},
 
+		// prelude: R7RS time procedures (no import needed)
+		{"prelude current-second positive", "(> (current-second) 0)", "#t"},
+		{"prelude jiffies-per-second", "(jiffies-per-second)", "1000000000"},
+		{"prelude current-jiffy positive", "(> (current-jiffy) 0)", "#t"},
+		{"prelude jiffy elapsed", "(let ((a (current-jiffy)) (b (current-jiffy))) (>= b a))", "#t"},
+
 		// stdlib: :scheme/time
-		{"import time current-second positive", "(import :scheme/time) (> (current-second) 0)", "#t"},
-		{"import time jiffies-per-second", "(import :scheme/time) (jiffies-per-second)", "1000000000"},
-		{"import time current-jiffy positive", "(import :scheme/time) (> (current-jiffy) 0)", "#t"},
-		{"import time elapsed", "(import :scheme/time) (let ((a (current-jiffy)) (b (current-jiffy))) (>= b a))", "#t"},
-		{"import time make-time year", "(import :scheme/list :scheme/time) (time-year (make-time 2024 3 15 12 0 0))", "2024"},
-		{"import time make-time month", "(import :scheme/list :scheme/time) (time-month (make-time 2024 3 15 12 0 0))", "3"},
-		{"import time make-time day", "(import :scheme/list :scheme/time) (time-day (make-time 2024 3 15 12 0 0))", "15"},
-		{"import time make-time hour", "(import :scheme/list :scheme/time) (time-hour (make-time 2024 3 15 12 30 45))", "12"},
-		{"import time make-time minute", "(import :scheme/list :scheme/time) (time-minute (make-time 2024 3 15 12 30 45))", "30"},
-		{"import time make-time second", "(import :scheme/list :scheme/time) (time-second (make-time 2024 3 15 12 30 45))", "45"},
-		{"import time weekday", "(import :scheme/list :scheme/time) (time-weekday (make-time 2024 3 15 0 0 0))", "5"},
-		{"import time weekday-name", `(import :scheme/list :scheme/time) (time-weekday-name (make-time 2024 3 15 0 0 0))`, `"Friday"`},
-		{"import time month-name", `(import :scheme/list :scheme/time) (time-month-name (make-time 2024 3 15 0 0 0))`, `"March"`},
+		{"import time make-time year", "(import :scheme/time) (time-year (make-time 2024 3 15 12 0 0))", "2024"},
+		{"import time make-time month", "(import :scheme/time) (time-month (make-time 2024 3 15 12 0 0))", "3"},
+		{"import time make-time day", "(import :scheme/time) (time-day (make-time 2024 3 15 12 0 0))", "15"},
+		{"import time make-time hour", "(import :scheme/time) (time-hour (make-time 2024 3 15 12 30 45))", "12"},
+		{"import time make-time minute", "(import :scheme/time) (time-minute (make-time 2024 3 15 12 30 45))", "30"},
+		{"import time make-time second", "(import :scheme/time) (time-second (make-time 2024 3 15 12 30 45))", "45"},
+		{"import time weekday", "(import :scheme/time) (time-weekday (make-time 2024 3 15 0 0 0))", "5"},
+		{"import time weekday-name", `(import :scheme/time) (time-weekday-name (make-time 2024 3 15 0 0 0))`, `"Friday"`},
+		{"import time month-name", `(import :scheme/time) (time-month-name (make-time 2024 3 15 0 0 0))`, `"March"`},
 		{"import time duration seconds", "(import :scheme/time) (seconds 5)", "5"},
 		{"import time duration minutes", "(import :scheme/time) (minutes 2)", "120"},
 		{"import time duration hours", "(import :scheme/time) (hours 1)", "3600"},
 		{"import time duration days", "(import :scheme/time) (days 1)", "86400"},
 		{"import time duration weeks", "(import :scheme/time) (weeks 1)", "604800"},
-		{"import time time-add", "(import :scheme/list :scheme/time) (let ((t (make-time 2024 1 1 0 0 0))) (time-year (time-add t (days 366))))", "2025"},
+		{"import time time-add", "(import :scheme/time) (let ((t (make-time 2024 1 1 0 0 0))) (time-year (time-add t (days 366))))", "2025"},
 		{"import time time-difference", "(import :scheme/time) (time-difference (seconds 100) (seconds 30))", "70"},
 		{"import time time<?", "(import :scheme/time) (time<? (seconds 1) (seconds 2))", "#t"},
 		{"import time time>?", "(import :scheme/time) (time>? (seconds 2) (seconds 1))", "#t"},
 		{"import time time=?", "(import :scheme/time) (time=? (seconds 5) (seconds 5))", "#t"},
 		{"import time time<=?", "(import :scheme/time) (time<=? (seconds 3) (seconds 3))", "#t"},
 		{"import time time>=?", "(import :scheme/time) (time>=? (seconds 4) (seconds 3))", "#t"},
-		{"import time time->string", `(import :scheme/list :scheme/time) (time->string (make-time 2024 3 15 12 0 0))`, `"2024-03-15T12:00:00Z"`},
-		{"import time string->time round-trip", `(import :scheme/list :scheme/time) (time-day (string->time "2024-03-15T12:00:00Z"))`, "15"},
-		{"import time time->string/fmt date", `(import :scheme/list :scheme/time) (time->string/fmt (make-time 2024 3 15 0 0 0) time-format/date)`, `"2024-03-15"`},
-		{"import time time-components length", `(import :scheme/list :scheme/time) (length (time-components (make-time 2024 1 1 0 0 0)))`, "7"},
+		{"import time time->string", `(import :scheme/time) (time->string (make-time 2024 3 15 12 0 0))`, `"2024-03-15T12:00:00Z"`},
+		{"import time string->time round-trip", `(import :scheme/time) (time-day (string->time "2024-03-15T12:00:00Z"))`, "15"},
+		{"import time time->string/fmt date", `(import :scheme/time) (time->string/fmt (make-time 2024 3 15 0 0 0) time-format/date)`, `"2024-03-15"`},
+		{"import time time-components length", `(import :scheme/time) (length (time-components (make-time 2024 1 1 0 0 0)))`, "7"},
 
 		// syntax macros: define-syntax / syntax-rules
 		{"macro simple substitution", `
@@ -378,7 +446,7 @@ func TestEval(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			is := is.New(t)
-			env := glerp.NewEnvironment(glerp.StandardBuiltins(), glerp.StandardForms())
+			env := glerp.NewEnvironment(glerp.DefaultConfig())
 			results, err := glerp.Eval(tt.src, env)
 			is.NoErr(err)
 			is.True(len(results) > 0)
@@ -408,7 +476,7 @@ func TestEvalErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			is := is.New(t)
-			env := glerp.NewEnvironment(glerp.StandardBuiltins(), glerp.StandardForms())
+			env := glerp.NewEnvironment(glerp.DefaultConfig())
 			_, err := glerp.Eval(tt.src, env)
 			is.True(err != nil)
 		})

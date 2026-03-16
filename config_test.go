@@ -140,7 +140,7 @@ func TestEvalFile(t *testing.T) {
 	is := is.New(t)
 
 	path := writeTemp(t, `(define result (+ 1 2))`)
-	env := glerp.NewEnvironment(glerp.StandardBuiltins(), glerp.StandardForms())
+	env := glerp.NewEnvironment(glerp.DefaultConfig())
 	err := glerp.EvalFile(path, env)
 	is.NoErr(err)
 
@@ -153,7 +153,7 @@ func TestEvalFile(t *testing.T) {
 func TestEvalFileMissing(t *testing.T) {
 	is := is.New(t)
 
-	env := glerp.NewEnvironment(glerp.StandardBuiltins(), glerp.StandardForms())
+	env := glerp.NewEnvironment(glerp.DefaultConfig())
 	err := glerp.EvalFile(filepath.Join(t.TempDir(), "missing.scm"), env)
 	is.True(err != nil)
 }
@@ -167,8 +167,8 @@ func TestEvalFilePreRegisteredForm(t *testing.T) {
 	}
 	var got server
 
-	forms := glerp.StandardForms()
-	forms["server"] = func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
+	ecfg := glerp.DefaultConfig()
+	ecfg.Forms["server"] = func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
 		host, err := args[0].Eval(env)
 		if err != nil {
 			return nil, err
@@ -183,7 +183,7 @@ func TestEvalFilePreRegisteredForm(t *testing.T) {
 	}
 
 	path := writeTemp(t, `(server "0.0.0.0" 9090)`)
-	env := glerp.NewEnvironment(glerp.StandardBuiltins(), forms)
+	env := glerp.NewEnvironment(ecfg)
 	err := glerp.EvalFile(path, env)
 	is.NoErr(err)
 	is.Equal(got.host, "0.0.0.0")

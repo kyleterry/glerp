@@ -3,6 +3,7 @@ package glerp
 import (
 	"fmt"
 	"maps"
+	"math"
 	"strings"
 )
 
@@ -11,9 +12,11 @@ import (
 type BuiltinFn func([]Expr) (Expr, error)
 
 // StandardBuiltins returns the default set of built-in procedures, including
-// arithmetic, list operations, I/O, and time utilities. The returned map is a
-// fresh copy — callers may add, remove, or replace entries before passing it
-// to NewEnvironment.
+// arithmetic, list operations, and I/O. The returned map is a fresh copy —
+// callers may modify it on an EnvironmentConfig before calling NewEnvironment.
+//
+// Go-backed libraries (e.g. time) are not included here; they are registered
+// as Libraries on the config and accessed with (import :go/time) from Scheme.
 func StandardBuiltins() map[string]BuiltinFn {
 	m := map[string]BuiltinFn{
 		"+":             builtinAdd,
@@ -29,7 +32,18 @@ func StandardBuiltins() map[string]BuiltinFn {
 		"car":           builtinCar,
 		"cdr":           builtinCdr,
 		"cons":          builtinCons,
-		"empty?":        builtinEmpty,
+		"null?":         typePred("null?", func(e Expr) bool { l, ok := e.(*ListExpr); return ok && len(l.elements) == 0 }),
+		"pair?":         typePred("pair?", func(e Expr) bool { l, ok := e.(*ListExpr); return ok && len(l.elements) > 0 }),
+		"list?":         typePred("list?", func(e Expr) bool { _, ok := e.(*ListExpr); return ok }),
+		"number?":       typePred("number?", func(e Expr) bool { _, ok := e.(*NumberExpr); return ok }),
+		"string?":       typePred("string?", func(e Expr) bool { _, ok := e.(*StringExpr); return ok }),
+		"boolean?":      typePred("boolean?", func(e Expr) bool { _, ok := e.(*BoolExpr); return ok }),
+		"symbol?":       typePred("symbol?", func(e Expr) bool { _, ok := e.(*SymbolExpr); return ok }),
+		"procedure?":    typePred("procedure?", func(e Expr) bool { _, okL := e.(*LambdaExpr); _, okB := e.(*BuiltinExpr); return okL || okB }),
+		"eq?":           builtinEq,
+		"equal?":        builtinEqual,
+		"modulo":        builtinModulo,
+		"remainder":     builtinRemainder,
 		"list":          builtinList,
 		"display":       builtinDisplay,
 		"display-ln":    builtinDisplayLn,
@@ -39,7 +53,6 @@ func StandardBuiltins() map[string]BuiltinFn {
 		"->string":      builtinToString,
 	}
 
-	maps.Copy(m, timeBuiltins())
 	maps.Copy(m, cxrBuiltins())
 
 	return m
@@ -270,16 +283,6 @@ func builtinCons(args []Expr) (Expr, error) {
 	return &ListExpr{elements: elems}, nil
 }
 
-func builtinEmpty(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("empty?: expected 1 argument, got %d", len(args))
-	}
-
-	lst, ok := args[0].(*ListExpr)
-
-	return boolean(ok && len(lst.elements) == 0), nil
-}
-
 func builtinList(args []Expr) (Expr, error) {
 	return &ListExpr{elements: args}, nil
 }
@@ -355,4 +358,99 @@ func builtinToString(args []Expr) (Expr, error) {
 	}
 
 	return &StringExpr{val: args[0].String()}, nil
+}
+
+func typePred(name string, pred func(Expr) bool) BuiltinFn {
+	return func(args []Expr) (Expr, error) {
+		if len(args) != 1 {
+			return nil, fmt.Errorf("%s: expected 1 argument, got %d", name, len(args))
+		}
+
+		return boolean(pred(args[0])), nil
+	}
+}
+
+func builtinEq(args []Expr) (Expr, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("eq?: expected 2 arguments, got %d", len(args))
+	}
+
+	return boolean(eqv(args[0], args[1])), nil
+}
+
+func deepEqual(a, b Expr) bool {
+	la, okA := a.(*ListExpr)
+	lb, okB := b.(*ListExpr)
+
+	if okA && okB {
+		if len(la.elements) != len(lb.elements) {
+			return false
+		}
+		for i := range la.elements {
+			if !deepEqual(la.elements[i], lb.elements[i]) {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	return eqv(a, b)
+}
+
+func builtinEqual(args []Expr) (Expr, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("equal?: expected 2 arguments, got %d", len(args))
+	}
+
+	return boolean(deepEqual(args[0], args[1])), nil
+}
+
+func builtinModulo(args []Expr) (Expr, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("modulo: expected 2 arguments, got %d", len(args))
+	}
+
+	a, err := toNum("modulo", args[0])
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := toNum("modulo", args[1])
+	if err != nil {
+		return nil, err
+	}
+
+	if b == 0 {
+		return nil, fmt.Errorf("modulo: division by zero")
+	}
+
+	r := math.Mod(a, b)
+	if r != 0 && (r < 0) != (b < 0) {
+		r += b
+	}
+
+	return num(r), nil
+}
+
+func builtinRemainder(args []Expr) (Expr, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("remainder: expected 2 arguments, got %d", len(args))
+	}
+
+	a, err := toNum("remainder", args[0])
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := toNum("remainder", args[1])
+	if err != nil {
+		return nil, err
+	}
+
+	if b == 0 {
+		return nil, fmt.Errorf("remainder: division by zero")
+	}
+
+	return num(math.Mod(a, b)), nil
 }

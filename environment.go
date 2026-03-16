@@ -1,6 +1,9 @@
 package glerp
 
-import "fmt"
+import (
+	"fmt"
+	"io/fs"
+)
 
 // Environment is a lexically-scoped map of variable bindings. Each environment
 // optionally references an outer (enclosing) scope, forming the chain used for
@@ -9,6 +12,7 @@ type Environment struct {
 	vals    map[string]Expr
 	outer   *Environment
 	exports []string
+	reg     *registry
 }
 
 // Bind creates or overwrites a binding in the current scope.
@@ -52,7 +56,7 @@ func (e *Environment) RegisterForm(name string, fn FormFn) {
 
 // StandardForms returns the default set of special forms. The returned map is
 // a fresh copy — callers may add, remove, or replace entries before passing it
-// to NewEnvironment.
+// to an EnvironmentConfig.
 func StandardForms() map[string]FormFn {
 	return map[string]FormFn{
 		"define":     evalDefine,
@@ -86,6 +90,7 @@ func (e *Environment) Extend() *Environment {
 	return &Environment{
 		vals:  make(map[string]Expr),
 		outer: e,
+		reg:   e.reg,
 	}
 }
 
@@ -132,11 +137,64 @@ func (e *Environment) Exports() []string {
 	return e.exports
 }
 
-// NewEnvironment creates a root environment populated with the given builtins
-// and special forms. Pass StandardBuiltins() and StandardForms() for the
-// default set, or customised maps to restrict or extend the environment.
-func NewEnvironment(builtins map[string]BuiltinFn, forms map[string]FormFn) *Environment {
-	env := &Environment{vals: make(map[string]Expr)}
+// Prelude is a named filesystem containing Scheme source files that are
+// evaluated into every new environment. The entry point is Name.scm in the
+// root of FS. Files within FS can import each other via (import :Name/path).
+type Prelude struct {
+	Name string
+	FS   fs.FS
+}
+
+// Library is a named set of importable Scheme or Go-backed procedures.
+// Set FS for a Scheme-file library importable as (import :Prefix/path),
+// or set Builtins for a Go-backed library importable as (import :Prefix).
+type Library struct {
+	Prefix   string
+	FS       fs.FS
+	Builtins map[string]BuiltinFn
+}
+
+// EnvironmentConfig holds all the settings for creating a new environment.
+type EnvironmentConfig struct {
+	Builtins  map[string]BuiltinFn
+	Forms     map[string]FormFn
+	Preludes  []Prelude
+	Libraries []Library
+}
+
+// DefaultConfig returns an EnvironmentConfig populated with the standard
+// builtins, forms, preludes, and libraries. The returned config is a fresh
+// copy — callers may modify any field before passing it to NewEnvironment.
+func DefaultConfig() *EnvironmentConfig {
+	return &EnvironmentConfig{
+		Builtins:  StandardBuiltins(),
+		Forms:     StandardForms(),
+		Preludes:  StandardPreludes(),
+		Libraries: StandardLibraries(),
+	}
+}
+
+// NewEnvironment creates a root environment from the given config. It
+// installs Go-level builtins and forms, registers libraries, then evaluates
+// preludes. Use DefaultConfig() for the standard setup.
+func NewEnvironment(cfg *EnvironmentConfig) *Environment {
+	reg := &registry{
+		builtins: cfg.Builtins,
+		forms:    cfg.Forms,
+	}
+
+	reg.libs = append(reg.libs, cfg.Libraries...)
+
+	env := newBaseEnvironment(cfg.Builtins, cfg.Forms, reg)
+	loadPreludes(env, cfg.Preludes)
+
+	return env
+}
+
+// newBaseEnvironment creates a root environment populated with the given
+// builtins and special forms, without loading preludes.
+func newBaseEnvironment(builtins map[string]BuiltinFn, forms map[string]FormFn, reg *registry) *Environment {
+	env := &Environment{vals: make(map[string]Expr), reg: reg}
 
 	for name, fn := range builtins {
 		env.Bind(name, &BuiltinExpr{name: name, fn: fn})

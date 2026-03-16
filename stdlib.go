@@ -11,21 +11,59 @@ import (
 //go:embed stdlib
 var stdlibFS embed.FS
 
-type registeredLib struct {
-	prefix string
-	fsys   fs.FS
+// registry holds the library state shared across all environments in a
+// chain. It is created once by NewEnvironment and inherited by Extend.
+type registry struct {
+	builtins map[string]BuiltinFn
+	forms    map[string]FormFn
+	libs     []Library
 }
 
-var extraLibs []registeredLib
+// StandardPreludes returns the default set of preludes: core (standard Scheme
+// fundamentals) and glerp (project-specific sugar). The returned slice is a
+// fresh copy — callers may append, remove, or reorder entries before setting
+// them on an EnvironmentConfig.
+func StandardPreludes() []Prelude {
+	coreFS, _ := fs.Sub(stdlibFS, "stdlib/prelude/core")
+	glerpFS, _ := fs.Sub(stdlibFS, "stdlib/prelude/glerp")
 
-// RegisterLibrary makes scheme libraries in fsys importable under the given
-// namespace prefix. After calling RegisterLibrary("myapp", myFS), scheme
-// code can use (import :myapp/utils) to load "utils.scm" from the root of
-// myFS. Deeper paths like (import :myapp/math/extra) load "math/extra.scm".
-// RegisterLibrary is intended to be called at program startup, before any
-// concurrent calls to Eval.
-func RegisterLibrary(prefix string, fsys fs.FS) {
-	extraLibs = append(extraLibs, registeredLib{prefix: prefix, fsys: fsys})
+	return []Prelude{
+		{Name: "core", FS: coreFS},
+		{Name: "glerp", FS: glerpFS},
+	}
+}
+
+// StandardLibraries returns the default set of importable libraries: the
+// embedded scheme stdlib and the Go-backed time library. The returned slice
+// is a fresh copy — callers may append, remove, or replace entries before
+// setting them on an EnvironmentConfig.
+func StandardLibraries() []Library {
+	schemeFS, _ := fs.Sub(stdlibFS, "stdlib/scheme")
+
+	return []Library{
+		{Prefix: "scheme", FS: schemeFS},
+		{Prefix: "go/time", Builtins: timeBuiltins()},
+	}
+}
+
+// loadPreludes registers each prelude's FS as an importable library and
+// evaluates its entry point into env. Panics on error because preludes are
+// embedded at compile time — a failure is a programmer bug.
+func loadPreludes(env *Environment, preludes []Prelude) {
+	for _, p := range preludes {
+		env.reg.libs = append(env.reg.libs, Library{Prefix: p.Name, FS: p.FS})
+
+		entry := p.Name + ".scm"
+
+		data, err := fs.ReadFile(p.FS, entry)
+		if err != nil {
+			panic(fmt.Sprintf("glerp: missing prelude entry %s/%s: %v", p.Name, entry, err))
+		}
+
+		if _, err := Eval(string(data), env); err != nil {
+			panic(fmt.Sprintf("glerp: prelude %s: %v", p.Name, err))
+		}
+	}
 }
 
 // evalExport implements (export name ...) inside a library file.
@@ -116,7 +154,7 @@ func applyImportSpec(spec Expr, env *Environment) error {
 }
 
 func importAll(libSpec string, env *Environment) error {
-	libEnv, err := loadLibEnv(libSpec)
+	libEnv, err := loadLibEnv(libSpec, env.reg)
 	if err != nil {
 		return err
 	}
@@ -130,7 +168,7 @@ func importAll(libSpec string, env *Environment) error {
 }
 
 func importOnly(libSpec string, names []string, env *Environment) error {
-	libEnv, err := loadLibEnv(libSpec)
+	libEnv, err := loadLibEnv(libSpec, env.reg)
 	if err != nil {
 		return err
 	}
@@ -153,15 +191,31 @@ func importOnly(libSpec string, names []string, env *Environment) error {
 
 // loadLibEnv evaluates the library at libSpec in an isolated environment and
 // returns that environment for the caller to inspect and selectively copy from.
-func loadLibEnv(libSpec string) (*Environment, error) {
-	data, err := readLibSource(libSpec)
+func loadLibEnv(libSpec string, reg *registry) (*Environment, error) {
+	// Check for Go-backed builtin libraries (exact match).
+	if name, ok := strings.CutPrefix(libSpec, ":"); ok {
+		for _, lib := range reg.libs {
+			if lib.Builtins != nil && lib.Prefix == name {
+				env := &Environment{vals: make(map[string]Expr), reg: reg}
+				for n, fn := range lib.Builtins {
+					env.Bind(n, &BuiltinExpr{name: n, fn: fn})
+				}
+
+				return env, nil
+			}
+		}
+	}
+
+	data, err := readLibSource(libSpec, reg)
 	if err != nil {
 		return nil, err
 	}
 
 	// Evaluate in a child of a fresh base so builtins are available but
 	// user-defined names land only in libEnv (not mixed with builtins).
-	libEnv := NewEnvironment(StandardBuiltins(), StandardForms()).Extend()
+	// Uses newBaseEnvironment (no preludes) to avoid recursion when
+	// preludes themselves use (import ...).
+	libEnv := newBaseEnvironment(reg.builtins, reg.forms, reg).Extend()
 	if _, err := Eval(string(data), libEnv); err != nil {
 		return nil, fmt.Errorf("import %s: %w", libSpec, err)
 	}
@@ -181,28 +235,26 @@ func exportedNames(libEnv *Environment) []string {
 
 // readLibSource resolves a library spec to its source bytes.
 //
-//	:scheme/list   embedded stdlib/scheme/list.scm
+//	:scheme/list   scheme library from a registered FS
 //	./my-utils     ./my-utils.scm relative to CWD
-func readLibSource(spec string) ([]byte, error) {
+func readLibSource(spec string, reg *registry) ([]byte, error) {
 	if tail, ok := strings.CutPrefix(spec, ":"); ok {
-		for _, lib := range extraLibs {
-			rest, ok := strings.CutPrefix(tail, lib.prefix+"/")
+		for _, lib := range reg.libs {
+			if lib.FS == nil {
+				continue
+			}
+			rest, ok := strings.CutPrefix(tail, lib.Prefix+"/")
 			if !ok {
 				continue
 			}
-			data, err := fs.ReadFile(lib.fsys, rest+".scm")
+			data, err := fs.ReadFile(lib.FS, rest+".scm")
 			if err != nil {
 				return nil, fmt.Errorf("import: no such library %q", spec)
 			}
 			return data, nil
 		}
 
-		path := "stdlib/" + tail + ".scm"
-		data, err := stdlibFS.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("import: no such library %q", spec)
-		}
-		return data, nil
+		return nil, fmt.Errorf("import: no such library %q", spec)
 	}
 
 	if strings.HasPrefix(spec, "./") || strings.HasPrefix(spec, "../") {

@@ -5,23 +5,22 @@ import (
 	"time"
 )
 
-// timeBuiltins returns Go-backed procedures for time operations. These are
-// included in StandardBuiltins and expose the go-extern: names used by
-// stdlib/scheme/time.scm.
+// timeBuiltins returns Go-backed time procedures, registered as the
+// "go/time" builtin library in StandardLibraries.
 func timeBuiltins() map[string]BuiltinFn {
 	return map[string]BuiltinFn{
-		"go-extern:current-second":  builtinCurrentSecond,
-		"go-extern:current-jiffy":   builtinCurrentJiffy,
-		"go-extern:time-make":       builtinTimeMake,
-		"go-extern:time-components": builtinTimeComponents,
-		"go-extern:time-format":     builtinTimeFormat,
-		"go-extern:time-parse":      builtinTimeParse,
+		"current-second":  builtinCurrentSecond,
+		"current-jiffy":   builtinCurrentJiffy,
+		"time-make":       builtinTimeMake,
+		"time-components": builtinTimeComponents,
+		"time-format":     builtinTimeFormat,
+		"time-parse":      builtinTimeParse,
 	}
 }
 
 func builtinCurrentSecond(args []Expr) (Expr, error) {
 	if len(args) != 0 {
-		return nil, fmt.Errorf("go-extern:current-second: expected 0 arguments, got %d", len(args))
+		return nil, fmt.Errorf("current-second: expected 0 arguments, got %d", len(args))
 	}
 
 	return num(float64(time.Now().UnixNano()) / 1e9), nil
@@ -29,7 +28,7 @@ func builtinCurrentSecond(args []Expr) (Expr, error) {
 
 func builtinCurrentJiffy(args []Expr) (Expr, error) {
 	if len(args) != 0 {
-		return nil, fmt.Errorf("go-extern:current-jiffy: expected 0 arguments, got %d", len(args))
+		return nil, fmt.Errorf("current-jiffy: expected 0 arguments, got %d", len(args))
 	}
 
 	return num(float64(time.Now().UnixNano())), nil
@@ -39,13 +38,13 @@ func builtinCurrentJiffy(args []Expr) (Expr, error) {
 // and returns it as a unix timestamp (float64 seconds).
 func builtinTimeMake(args []Expr) (Expr, error) {
 	if len(args) != 6 {
-		return nil, fmt.Errorf("go-extern:time-make: expected 6 arguments, got %d", len(args))
+		return nil, fmt.Errorf("time-make: expected 6 arguments, got %d", len(args))
 	}
 
 	vals := make([]int, 6)
 
 	for i, a := range args {
-		n, err := toNum("go-extern:time-make", a)
+		n, err := toNum("time-make", a)
 		if err != nil {
 			return nil, err
 		}
@@ -61,10 +60,10 @@ func builtinTimeMake(args []Expr) (Expr, error) {
 // a unix timestamp. weekday is 0 (Sunday) through 6 (Saturday).
 func builtinTimeComponents(args []Expr) (Expr, error) {
 	if len(args) != 1 {
-		return nil, fmt.Errorf("go-extern:time-components: expected 1 argument, got %d", len(args))
+		return nil, fmt.Errorf("time-components: expected 1 argument, got %d", len(args))
 	}
 
-	ts, err := toNum("go-extern:time-components", args[0])
+	ts, err := toNum("time-components", args[0])
 	if err != nil {
 		return nil, err
 	}
@@ -89,16 +88,16 @@ func builtinTimeComponents(args []Expr) (Expr, error) {
 // builtinTimeFormat formats a unix timestamp using a Go reference-time layout string.
 func builtinTimeFormat(args []Expr) (Expr, error) {
 	if len(args) != 2 {
-		return nil, fmt.Errorf("go-extern:time-format: expected 2 arguments, got %d", len(args))
+		return nil, fmt.Errorf("time-format: expected 2 arguments, got %d", len(args))
 	}
 
-	ts, err := toNum("go-extern:time-format", args[0])
+	ts, err := toNum("time-format", args[0])
 	if err != nil {
 		return nil, err
 	}
 	layout, ok := args[1].(*StringExpr)
 	if !ok {
-		return nil, fmt.Errorf("go-extern:time-format: layout must be a string, got %s", args[1].String())
+		return nil, fmt.Errorf("time-format: layout must be a string, got %s", args[1].String())
 	}
 
 	sec := int64(ts)
@@ -112,18 +111,18 @@ func builtinTimeFormat(args []Expr) (Expr, error) {
 // returns a unix timestamp (float64 seconds).
 func builtinTimeParse(args []Expr) (Expr, error) {
 	if len(args) != 2 {
-		return nil, fmt.Errorf("go-extern:time-parse: expected 2 arguments, got %d", len(args))
+		return nil, fmt.Errorf("time-parse: expected 2 arguments, got %d", len(args))
 	}
 
 	layout, ok1 := args[0].(*StringExpr)
 	value, ok2 := args[1].(*StringExpr)
 	if !ok1 || !ok2 {
-		return nil, fmt.Errorf("go-extern:time-parse: both arguments must be strings")
+		return nil, fmt.Errorf("time-parse: both arguments must be strings")
 	}
 
 	t, err := time.Parse(layout.val, value.val)
 	if err != nil {
-		return nil, fmt.Errorf("go-extern:time-parse: %w", err)
+		return nil, fmt.Errorf("time-parse: %w", err)
 	}
 
 	return num(float64(t.Unix())), nil

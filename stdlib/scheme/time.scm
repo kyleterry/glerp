@@ -1,65 +1,63 @@
-;; R7RS + extended time library — (import :scheme/time)
+;; Extended time library — (import :scheme/time)
 ;;
 ;; Times are represented as real numbers of seconds since the POSIX epoch
 ;; (1970-01-01T00:00:00 UTC), consistent with R7RS current-second.
 ;; All operations use UTC.
 
-(export #t)
-(import :scheme/list)
+(import (only :core/list list-ref))
+(import :go/time)
 
-;; Returns the current time as a real number of seconds since the POSIX epoch.
-(define (current-second)
-  (go-extern:current-second))
-
-;; Returns the current time as an integer count of jiffies (nanoseconds).
-(define (current-jiffy)
-  (go-extern:current-jiffy))
-
-;; Returns the number of jiffies per second (1,000,000,000).
-(define (jiffies-per-second)
-  1000000000)
+(export current-time
+        make-time time-components
+        time-year time-month time-day time-hour time-minute time-second
+        time-weekday time-weekday-name time-month-name
+        seconds minutes hours days weeks
+        time-add time-subtract time-difference
+        time<? time>? time=? time<=? time>=?
+        time-format/iso time-format/date time-format/time time-format/datetime
+        time->string time->string/fmt
+        string->time string->time/fmt)
 
 ;; Returns the current time as a unix timestamp (alias for current-second).
 (define (current-time)
-  (go-extern:current-second))
+  (current-second))
 
 ;; Constructs a time value from UTC components.
 ;; month is 1–12; all other fields follow natural ranges.
 (define (make-time year month day hour minute second)
-  (go-extern:time-make year month day hour minute second))
+  (time-make year month day hour minute second))
 
-;; Returns the list (year month day hour minute second weekday) for time t.
+;; time-components is imported from :go/time and returns the list
+;; (year month day hour minute second weekday) for time t.
 ;; weekday is 0 (Sunday) through 6 (Saturday).
-(define (time-components t)
-  (go-extern:time-components t))
 
 ;; Returns the four-digit UTC year of time t.
 (define (time-year t)
-  (list-ref (go-extern:time-components t) 0))
+  (list-ref (time-components t) 0))
 
 ;; Returns the UTC month (1–12) of time t.
 (define (time-month t)
-  (list-ref (go-extern:time-components t) 1))
+  (list-ref (time-components t) 1))
 
 ;; Returns the UTC day of the month (1–31) of time t.
 (define (time-day t)
-  (list-ref (go-extern:time-components t) 2))
+  (list-ref (time-components t) 2))
 
 ;; Returns the UTC hour (0–23) of time t.
 (define (time-hour t)
-  (list-ref (go-extern:time-components t) 3))
+  (list-ref (time-components t) 3))
 
 ;; Returns the UTC minute (0–59) of time t.
 (define (time-minute t)
-  (list-ref (go-extern:time-components t) 4))
+  (list-ref (time-components t) 4))
 
 ;; Returns the UTC second (0–59) of time t.
 (define (time-second t)
-  (list-ref (go-extern:time-components t) 5))
+  (list-ref (time-components t) 5))
 
 ;; Returns the day of the week as a number: 0 (Sunday) through 6 (Saturday).
 (define (time-weekday t)
-  (list-ref (go-extern:time-components t) 6))
+  (list-ref (time-components t) 6))
 
 ;; Returns the full name of the weekday for time t, e.g. "Monday".
 (define (time-weekday-name t)
@@ -134,16 +132,16 @@
 
 ;; Returns t formatted as an ISO 8601 string.
 (define (time->string t)
-  (go-extern:time-format t time-format/iso))
+  (time-format t time-format/iso))
 
 ;; Returns t formatted according to the given Go layout string.
 (define (time->string/fmt t fmt)
-  (go-extern:time-format t fmt))
+  (time-format t fmt))
 
 ;; Parses an ISO 8601 string and returns a time value.
 (define (string->time s)
-  (go-extern:time-parse time-format/iso s))
+  (time-parse time-format/iso s))
 
 ;; Parses s according to the given Go layout string and returns a time value.
 (define (string->time/fmt fmt s)
-  (go-extern:time-parse fmt s))
+  (time-parse fmt s))

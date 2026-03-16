@@ -50,7 +50,7 @@ func runFile(path string) {
 		os.Exit(1)
 	}
 
-	env := glerp.NewEnvironment(glerp.StandardBuiltins(), glerp.StandardForms())
+	env := glerp.NewEnvironment(glerp.DefaultConfig())
 	for _, expr := range exprs {
 		if _, err := expr.Eval(env); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -96,7 +96,7 @@ func (c *replCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) 
 }
 
 func runREPL() {
-	env := glerp.NewEnvironment(glerp.StandardBuiltins(), glerp.StandardForms())
+	env := glerp.NewEnvironment(glerp.DefaultConfig())
 
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:          "> ",

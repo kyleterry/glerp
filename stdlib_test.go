@@ -8,7 +8,7 @@ import (
 	"go.e64ec.com/glerp"
 )
 
-func TestRegisterLibrary(t *testing.T) {
+func TestCustomLibrary(t *testing.T) {
 	is := is.New(t)
 
 	testFS := fstest.MapFS{
@@ -20,7 +20,11 @@ func TestRegisterLibrary(t *testing.T) {
 		},
 	}
 
-	glerp.RegisterLibrary("testpkg", testFS)
+	cfg := glerp.DefaultConfig()
+	cfg.Libraries = append(cfg.Libraries, glerp.Library{
+		Prefix: "testpkg",
+		FS:     testFS,
+	})
 
 	tests := []struct {
 		name string
@@ -34,7 +38,7 @@ func TestRegisterLibrary(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			is := is.New(t)
-			env := glerp.NewEnvironment(glerp.StandardBuiltins(), glerp.StandardForms())
+			env := glerp.NewEnvironment(cfg)
 			results, err := glerp.Eval(tt.src, env)
 			is.NoErr(err)
 			is.Equal(results[len(results)-1].String(), tt.want)
