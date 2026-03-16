@@ -19,7 +19,7 @@ func writeTemp(t *testing.T, src string) string {
 	if _, err := f.WriteString(src); err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
+	_ = f.Close()
 	return f.Name()
 }
 
