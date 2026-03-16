@@ -3,6 +3,7 @@ package glerp
 import (
 	"fmt"
 	"maps"
+	"strings"
 )
 
 // BuiltinFn is the signature for a Go-implemented Scheme procedure. Arguments
@@ -30,10 +31,12 @@ func StandardBuiltins() map[string]BuiltinFn {
 		"cons":       builtinCons,
 		"empty?":     builtinEmpty,
 		"list":       builtinList,
-		"display":    builtinDisplay,
-		"display-ln": builtinDisplayLn,
-		"newline":    builtinNewline,
-		"values":     builtinValues,
+		"display":       builtinDisplay,
+		"display-ln":    builtinDisplayLn,
+		"newline":       builtinNewline,
+		"values":        builtinValues,
+		"string-append": builtinStringAppend,
+		"->string":      builtinToString,
 	}
 	maps.Copy(m, timeBuiltins())
 	maps.Copy(m, cxrBuiltins())
@@ -330,4 +333,26 @@ func builtinNewline(args []Expr) (Expr, error) {
 	}
 	fmt.Println()
 	return Void(), nil
+}
+
+func builtinStringAppend(args []Expr) (Expr, error) {
+	var b strings.Builder
+	for i, arg := range args {
+		s, ok := arg.(*StringExpr)
+		if !ok {
+			return nil, fmt.Errorf("string-append: argument %d is not a string: %s", i+1, arg.String())
+		}
+		b.WriteString(s.val)
+	}
+	return &StringExpr{val: b.String()}, nil
+}
+
+func builtinToString(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("->string: expected 1 argument, got %d", len(args))
+	}
+	if s, ok := args[0].(*StringExpr); ok {
+		return s, nil
+	}
+	return &StringExpr{val: args[0].String()}, nil
 }

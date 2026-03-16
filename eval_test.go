@@ -94,6 +94,13 @@ func TestEval(t *testing.T) {
 		{"quote long form", "(quote (a b c))", "(a b c)"},
 		{"quote atom", "'hello", "hello"},
 
+		// string interpolation
+		{"interp plain", `$"hello"`, `"hello"`},
+		{"interp var", `(define name "world") $"Hello {name}!"`, `"Hello world!"`},
+		{"interp expr", `$"1+2={( + 1 2)}"`, `"1+2=3"`},
+		{"interp number", `(define n 7) $"n={n}"`, `"n=7"`},
+		{"interp multi", `(define a "x") (define b "y") $"{a}+{b}"`, `"x+y"`},
+
 		// quasiquote / unquote / unquote-splicing
 		{"quasiquote plain", "`(1 2 3)", "(1 2 3)"},
 		{"quasiquote atom", "`hello", "hello"},

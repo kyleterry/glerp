@@ -28,6 +28,7 @@ const (
 	Symbol
 	Number
 	String
+	InterpString
 	literal_end
 
 	delimeter_beg
@@ -75,7 +76,8 @@ var tokens = [...]string{
 	Atom:      "ATOM",
 	Symbol:    "SYMBOL",
 	Number:    "NUMBER",
-	String:    "STRING",
+	String:       "STRING",
+	InterpString: "INTERP_STRING",
 	LParen:    "(",
 	LBrack:    "[",
 	LBrace:    "{",

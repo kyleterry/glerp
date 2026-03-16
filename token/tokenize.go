@@ -11,6 +11,9 @@ type mode int
 const (
 	normal mode = iota
 	quoted
+	interpString // inside $"...", outside a {} block
+	interpExpr   // inside {} within an interpolated string
+	interpQuoted // inside a "" string literal within a {} block
 )
 
 // Tokenizer can read from a reader and split the content up into Tokens. It
@@ -21,9 +24,10 @@ const (
 // are reading a string. Quoted mode is started when the tokenizer sees a " and
 // is flipped back to normal mode when it sees another ".
 type Tokenizer struct {
-	toks    []Token
-	current string
-	mode    mode
+	toks       []Token
+	current    string
+	mode       mode
+	braceDepth int
 }
 
 // Run takes an io.Reader and returns a slice of Tokens. The content read from
@@ -76,6 +80,50 @@ func (t *Tokenizer) tokenizeLine(line string) []Token {
 			continue
 		}
 
+		if t.mode == interpString {
+			switch r {
+			case '"':
+				tokens = append(tokens, Token{Kind: InterpString, Value: t.current})
+				t.current = ""
+				t.mode = normal
+			case '{':
+				t.current += "{"
+				t.mode = interpExpr
+				t.braceDepth = 1
+			default:
+				t.current += string(r)
+			}
+			continue
+		}
+
+		if t.mode == interpExpr {
+			switch r {
+			case '{':
+				t.braceDepth++
+				t.current += "{"
+			case '}':
+				t.braceDepth--
+				t.current += "}"
+				if t.braceDepth == 0 {
+					t.mode = interpString
+				}
+			case '"':
+				t.current += "\""
+				t.mode = interpQuoted
+			default:
+				t.current += string(r)
+			}
+			continue
+		}
+
+		if t.mode == interpQuoted {
+			t.current += string(r)
+			if r == '"' {
+				t.mode = interpExpr
+			}
+			continue
+		}
+
 		switch {
 		case unicode.IsSpace(r):
 			if t.current != "" {
@@ -86,7 +134,12 @@ func (t *Tokenizer) tokenizeLine(line string) []Token {
 				t.current = ""
 			}
 		case r == '"':
-			t.mode = quoted
+			if t.current == "$" {
+				t.current = ""
+				t.mode = interpString
+			} else {
+				t.mode = quoted
+			}
 		case r == ',':
 			if t.current != "" {
 				tokens = append(tokens, Token{
