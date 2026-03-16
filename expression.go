@@ -159,6 +159,7 @@ func (e *ListExpr) Eval(env *Environment) (Expr, error) {
 type LambdaExpr struct {
 	tok    token.Token
 	params []string
+	rest   string // non-empty when the lambda accepts variadic trailing args
 	body   []Expr
 	env    *Environment
 }
@@ -170,7 +171,13 @@ func (e *LambdaExpr) Token() token.Token { return e.tok }
 
 // String returns a summary representation showing the parameter list.
 func (e *LambdaExpr) String() string {
-	return "(lambda (" + strings.Join(e.params, " ") + ") ...)"
+	if e.rest == "" {
+		return "(lambda (" + strings.Join(e.params, " ") + ") ...)"
+	}
+	if len(e.params) == 0 {
+		return "(lambda " + e.rest + " ...)"
+	}
+	return "(lambda (" + strings.Join(e.params, " ") + " . " + e.rest + ") ...)"
 }
 
 // FormExpr is a Go-implemented special form. Unlike BuiltinExpr, its arguments
@@ -247,12 +254,18 @@ func apply(proc Expr, args []Expr) (Expr, error) {
 	case *BuiltinExpr:
 		return p.fn(args)
 	case *LambdaExpr:
-		if len(args) != len(p.params) {
+		if p.rest == "" && len(args) != len(p.params) {
 			return nil, fmt.Errorf("%s: expected %d args, got %d", p.String(), len(p.params), len(args))
+		}
+		if p.rest != "" && len(args) < len(p.params) {
+			return nil, fmt.Errorf("%s: expected at least %d args, got %d", p.String(), len(p.params), len(args))
 		}
 		child := p.env.Extend()
 		for i, param := range p.params {
 			child.Bind(param, args[i])
+		}
+		if p.rest != "" {
+			child.Bind(p.rest, &ListExpr{elements: args[len(p.params):]})
 		}
 		return evalBody(p.body, child)
 	default:
@@ -308,15 +321,27 @@ func evalLambda(args []Expr, env *Environment) (Expr, error) {
 }
 
 func makeLambda(paramExprs []Expr, body []Expr, env *Environment) (*LambdaExpr, error) {
-	params := make([]string, len(paramExprs))
+	var params []string
+	var rest string
 	for i, p := range paramExprs {
 		sym, ok := p.(*SymbolExpr)
 		if !ok {
 			return nil, fmt.Errorf("lambda: parameter must be a symbol, got %T", p)
 		}
-		params[i] = sym.val
+		if sym.val == "." {
+			if i != len(paramExprs)-2 {
+				return nil, fmt.Errorf("lambda: '.' must be followed by exactly one rest parameter")
+			}
+			restSym, ok := paramExprs[i+1].(*SymbolExpr)
+			if !ok {
+				return nil, fmt.Errorf("lambda: rest parameter must be a symbol")
+			}
+			rest = restSym.val
+			break
+		}
+		params = append(params, sym.val)
 	}
-	return &LambdaExpr{params: params, body: body, env: env}, nil
+	return &LambdaExpr{params: params, rest: rest, body: body, env: env}, nil
 }
 
 func evalIf(args []Expr, env *Environment) (Expr, error) {

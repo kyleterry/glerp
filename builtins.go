@@ -36,6 +36,45 @@ func StandardBuiltins() map[string]BuiltinFn {
 		"values":     builtinValues,
 	}
 	maps.Copy(m, timeBuiltins())
+	maps.Copy(m, cxrBuiltins())
+	return m
+}
+
+// cxrBuiltins generates all caar/cadr/…/cddddr compositions (2–4 a/d letters).
+// Each function applies car (a) or cdr (d) right-to-left, so cadr is
+// equivalent to (car (cdr x)).
+func cxrBuiltins() map[string]BuiltinFn {
+	m := make(map[string]BuiltinFn)
+	var add func(ops string)
+	add = func(ops string) {
+		name := "c" + ops + "r"
+		m[name] = func(args []Expr) (Expr, error) {
+			if len(args) != 1 {
+				return nil, fmt.Errorf("%s: expected 1 argument, got %d", name, len(args))
+			}
+			result := args[0]
+			for i := len(ops) - 1; i >= 0; i-- {
+				var err error
+				if ops[i] == 'a' {
+					result, err = builtinCar([]Expr{result})
+				} else {
+					result, err = builtinCdr([]Expr{result})
+				}
+				if err != nil {
+					return nil, fmt.Errorf("%s: %w", name, err)
+				}
+			}
+			return result, nil
+		}
+		if len(ops) < 4 {
+			add("a" + ops)
+			add("d" + ops)
+		}
+	}
+	add("aa")
+	add("ad")
+	add("da")
+	add("dd")
 	return m
 }
 

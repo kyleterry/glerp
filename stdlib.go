@@ -3,12 +3,30 @@ package glerp
 import (
 	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 )
 
 //go:embed stdlib
 var stdlibFS embed.FS
+
+type registeredLib struct {
+	prefix string
+	fsys   fs.FS
+}
+
+var extraLibs []registeredLib
+
+// RegisterLibrary makes scheme libraries in fsys importable under the given
+// namespace prefix. After calling RegisterLibrary("myapp", myFS), scheme
+// code can use (import :myapp/utils) to load "utils.scm" from the root of
+// myFS. Deeper paths like (import :myapp/math/extra) load "math/extra.scm".
+// RegisterLibrary is intended to be called at program startup, before any
+// concurrent calls to Eval.
+func RegisterLibrary(prefix string, fsys fs.FS) {
+	extraLibs = append(extraLibs, registeredLib{prefix: prefix, fsys: fsys})
+}
 
 // evalExport implements (export name ...) inside a library file.
 // It declares the set of symbols this library makes available to importers.
@@ -146,10 +164,21 @@ func exportedNames(libEnv *Environment) []string {
 
 // readLibSource resolves a library spec to its source bytes.
 //
-//	:scheme/list   → embedded stdlib/scheme/list.scm
-//	./my-utils     → ./my-utils.scm relative to CWD
+//	:scheme/list   embedded stdlib/scheme/list.scm
+//	./my-utils     ./my-utils.scm relative to CWD
 func readLibSource(spec string) ([]byte, error) {
 	if tail, ok := strings.CutPrefix(spec, ":"); ok {
+		for _, lib := range extraLibs {
+			rest, ok := strings.CutPrefix(tail, lib.prefix+"/")
+			if !ok {
+				continue
+			}
+			data, err := fs.ReadFile(lib.fsys, rest+".scm")
+			if err != nil {
+				return nil, fmt.Errorf("import: no such library %q", spec)
+			}
+			return data, nil
+		}
 		path := "stdlib/" + tail + ".scm"
 		data, err := stdlibFS.ReadFile(path)
 		if err != nil {
