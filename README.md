@@ -12,7 +12,8 @@ go get go.e64ec.com/glerp
 
 ## Language
 
-glerp implements a practical subset of Scheme.
+glerp implements a practical subset of Scheme with a few non-standard
+extensions that suit its use as an embedded DSL.
 
 ### Literals
 
@@ -41,7 +42,9 @@ the visual distinction helps separate the bindings from the body:
 ```scheme
 (define x 10)                        ; variable
 (define (square n) (* n n))          ; function shorthand
+(define (f x . rest) rest)           ; variadic function (rest is a list)
 (lambda (x y) (+ x y))              ; anonymous function
+(lambda (x . rest) rest)             ; variadic lambda
 (set! x 99)                          ; mutation
 (if (> x 0) "pos" "neg")            ; conditional (else clause optional)
 (cond [(= x 1) "one"] [else "?"])   ; multi-branch conditional
@@ -51,18 +54,59 @@ the visual distinction helps separate the bindings from the body:
 (begin expr ...)                     ; sequence, returns last
 (and expr ...)                       ; short-circuit and
 (or  expr ...)                       ; short-circuit or
-(quote x)  'x                        ; quoting
+(quote x)  'x                        ; prevent evaluation
 ```
+
+### Quasiquote
+
+Quasiquote builds list structures with selective evaluation. `` ` `` is
+shorthand for `quasiquote`, `,` for `unquote`, and `,@` for
+`unquote-splicing`.
+
+```scheme
+(define x 42)
+(define xs '(2 3))
+
+`(a ,x c)          ; => (a 42 c)
+`(a ,@xs d)        ; => (a 2 3 d)
+`(a ,(+ 1 2) c)    ; => (a 3 c)
+`((x is ,x))       ; => ((x is 42))
+```
+
+`unquote-splicing` splices a list into the surrounding list; the spliced value
+must be a list.
+
+### String interpolation
+
+The `$"..."` syntax embeds Scheme expressions inside string literals. Any
+expression inside `{...}` is evaluated and converted to a string.
+
+```scheme
+(define name "Alice")
+(define n 7)
+
+$"Hello {name}!"          ; => "Hello Alice!"
+$"n squared is {(* n n)}" ; => "n squared is 49"
+$"{name} has {(string-length name)} chars" ; => "Alice has 5 chars"
+```
+
+`{...}` may contain any Scheme expression, including nested function calls and
+string literals. The result is converted with `->string`.
 
 ### Lists
 
 ```scheme
-(cons 1 '(2 3))   ; => (1 2 3)
-(car '(1 2 3))    ; => 1
-(cdr '(1 2 3))    ; => (2 3)
-(list 1 2 3)      ; => (1 2 3)
-(empty? '())      ; => #t
+(cons 1 '(2 3))      ; => (1 2 3)
+(car '(1 2 3))       ; => 1
+(cdr '(1 2 3))       ; => (2 3)
+(cadr '(1 2 3))      ; => 2        (car of cdr)
+(caddr '(1 2 3))     ; => 3        (car of cdr of cdr)
+(list 1 2 3)         ; => (1 2 3)
+(empty? '())         ; => #t
 ```
+
+All `cXr` compositions up to four levels deep are available: `caar`, `cadr`,
+`cdar`, `cddr`, `caaar` through `cdddr`, `caaaar` through `cddddr`.
 
 ### Iteration
 
@@ -98,7 +142,11 @@ the library are bound in the current scope.
 ```
 
 **`:scheme/list`** `length`, `append`, `reverse`, `list-ref`, `list-tail`,
-`map`, `filter`, `for-each`, `fold`
+`map`, `filter`, `for-each`, `fold`, `range`
+
+- `(range n)` => `(0 1 ... n-1)`
+- `(range start end)` => `(start ... end-1)`
+- `(range start end step)` => stepped; step may be negative
 
 **`:scheme/math`** `abs`, `max`, `min`, `square`, `cube`, `average`,
 `clamp`
@@ -119,8 +167,11 @@ the library are bound in the current scope.
 <  >  <=  >=  =        numeric comparison
 not                    boolean negation
 car  cdr  cons         list constructors and accessors
+caar cadr ... cddddr   all two-to-four-level car/cdr compositions
 list  empty?           list utilities
 values                 multiple return values
+string-append          concatenate strings: (string-append "a" "b") => "ab"
+->string               convert any value to a string
 display  display-ln    output (display omits surrounding quotes on strings)
 newline                print a newline
 ```
@@ -196,6 +247,40 @@ tags, _    := cfg.Strings("tags")
 
 `Load` evaluates the file in a fresh standard environment. For more control,
 use `EvalFile` with a prepared environment.
+
+### Register an embedded library
+
+Use `RegisterLibrary` to make your own Scheme files importable via `(import
+:prefix/name)`. This is intended for `go:embed`'d libraries shipped alongside
+your application.
+
+```go
+//go:embed mylibs
+var myLibs embed.FS
+
+func init() {
+    glerp.RegisterLibrary("myapp", myLibs)
+}
+```
+
+```scheme
+; mylibs/utils.scm
+(define (greet name) $"Hello {name}!")
+```
+
+```scheme
+; user script
+(import :myapp/utils)
+(greet "world")  ; => "Hello world!"
+```
+
+Paths within the namespace correspond directly to file paths relative to the
+FS root: `(import :myapp/math/extra)` loads `math/extra.scm`. Registered
+libraries are checked before the built-in stdlib, so they can shadow stdlib
+names.
+
+`RegisterLibrary` is safe to call at program startup (e.g. in `init`). It is
+not safe to call concurrently with `Eval`.
 
 
 ## Building a DSL
@@ -296,8 +381,9 @@ go install go.e64ec.com/glerp/cmd/glerp@latest
 ```
 
 ```
-glerp             # start the REPL
-glerp script.scm  # evaluate a file
+glerp                        # start the REPL
+glerp script.scm             # evaluate a file
+echo '(display "hi")' | glerp  # evaluate from stdin
 ```
 
 ## Development
