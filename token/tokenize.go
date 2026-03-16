@@ -50,8 +50,14 @@ func (t *Tokenizer) Run(r io.Reader) ([]Token, error) {
 
 func (t *Tokenizer) tokenizeLine(line string) []Token {
 	var tokens []Token
+	skip := false
 
 	for i, r := range line {
+		if skip {
+			skip = false
+			continue
+		}
+
 		if t.mode == quoted {
 			if r != '"' {
 				t.current += string(r)
@@ -81,6 +87,20 @@ func (t *Tokenizer) tokenizeLine(line string) []Token {
 			}
 		case r == '"':
 			t.mode = quoted
+		case r == ',':
+			if t.current != "" {
+				tokens = append(tokens, Token{
+					Kind:  Lookup(t.current),
+					Value: t.current,
+				})
+				t.current = ""
+			}
+			if i+1 < len(line) && line[i+1] == '@' {
+				tokens = append(tokens, Token{Kind: CommaAt, Value: ",@"})
+				skip = true
+			} else {
+				tokens = append(tokens, Token{Kind: Comma, Value: ","})
+			}
 		case IsDelimeter(string(r)):
 			if t.current != "" {
 				tokens = append(tokens, Token{

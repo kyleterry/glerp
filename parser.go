@@ -45,6 +45,36 @@ func (p *Parser) parseExpr() (Expr, error) {
 		}
 		return &ListExpr{tok: tok, elements: []Expr{quoteSym, inner}}, nil
 
+	case token.Backtick:
+		// Desugar `expr → (quasiquote expr)
+		p.lexer.NextToken()
+		inner, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		sym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "quasiquote"}, val: "quasiquote"}
+		return &ListExpr{tok: tok, elements: []Expr{sym, inner}}, nil
+
+	case token.Comma:
+		// Desugar ,expr → (unquote expr)
+		p.lexer.NextToken()
+		inner, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		sym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "unquote"}, val: "unquote"}
+		return &ListExpr{tok: tok, elements: []Expr{sym, inner}}, nil
+
+	case token.CommaAt:
+		// Desugar ,@expr → (unquote-splicing expr)
+		p.lexer.NextToken()
+		inner, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		sym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "unquote-splicing"}, val: "unquote-splicing"}
+		return &ListExpr{tok: tok, elements: []Expr{sym, inner}}, nil
+
 	case token.Number:
 		p.lexer.NextToken()
 		v, err := strconv.ParseFloat(tok.Value, 64)

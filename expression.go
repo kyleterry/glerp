@@ -400,6 +400,98 @@ func evalQuote(args []Expr, _ *Environment) (Expr, error) {
 	return args[0], nil
 }
 
+func evalQuasiquote(args []Expr, env *Environment) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("quasiquote: expected 1 argument, got %d", len(args))
+	}
+	return expandQQ(args[0], 0, env)
+}
+
+// isTagged reports whether expr is a list whose first element is a symbol with
+// the given name, returning the remaining elements if so.
+func isTagged(expr Expr, name string) ([]Expr, bool) {
+	list, ok := expr.(*ListExpr)
+	if !ok || len(list.elements) == 0 {
+		return nil, false
+	}
+	sym, ok := list.elements[0].(*SymbolExpr)
+	if !ok || sym.val != name {
+		return nil, false
+	}
+	return list.elements[1:], true
+}
+
+// expandQQ recursively expands a quasiquote template at the given nesting
+// depth. depth 0 means we are in the innermost quasiquote and unquote
+// expressions are evaluated immediately.
+func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
+	if inner, ok := isTagged(expr, "unquote"); ok {
+		if len(inner) != 1 {
+			return nil, fmt.Errorf("unquote: expected 1 argument, got %d", len(inner))
+		}
+		if depth == 0 {
+			return inner[0].Eval(env)
+		}
+		expanded, err := expandQQ(inner[0], depth-1, env)
+		if err != nil {
+			return nil, err
+		}
+		sym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "unquote"}, val: "unquote"}
+		return &ListExpr{tok: expr.Token(), elements: []Expr{sym, expanded}}, nil
+	}
+
+	if inner, ok := isTagged(expr, "quasiquote"); ok {
+		if len(inner) != 1 {
+			return nil, fmt.Errorf("quasiquote: expected 1 argument, got %d", len(inner))
+		}
+		expanded, err := expandQQ(inner[0], depth+1, env)
+		if err != nil {
+			return nil, err
+		}
+		sym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "quasiquote"}, val: "quasiquote"}
+		return &ListExpr{tok: expr.Token(), elements: []Expr{sym, expanded}}, nil
+	}
+
+	list, ok := expr.(*ListExpr)
+	if !ok {
+		return expr, nil
+	}
+
+	var result []Expr
+	for _, el := range list.elements {
+		if spliceArgs, ok := isTagged(el, "unquote-splicing"); ok {
+			if len(spliceArgs) != 1 {
+				return nil, fmt.Errorf("unquote-splicing: expected 1 argument, got %d", len(spliceArgs))
+			}
+			if depth == 0 {
+				val, err := spliceArgs[0].Eval(env)
+				if err != nil {
+					return nil, err
+				}
+				spliceList, ok := val.(*ListExpr)
+				if !ok {
+					return nil, fmt.Errorf("unquote-splicing: expected a list, got %s", val.String())
+				}
+				result = append(result, spliceList.elements...)
+				continue
+			}
+			expanded, err := expandQQ(spliceArgs[0], depth-1, env)
+			if err != nil {
+				return nil, err
+			}
+			sym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "unquote-splicing"}, val: "unquote-splicing"}
+			result = append(result, &ListExpr{tok: el.Token(), elements: []Expr{sym, expanded}})
+			continue
+		}
+		expanded, err := expandQQ(el, depth, env)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, expanded)
+	}
+	return &ListExpr{tok: list.tok, elements: result}, nil
+}
+
 func evalSetBang(args []Expr, env *Environment) (Expr, error) {
 	if len(args) != 2 {
 		return nil, fmt.Errorf("set!: expected 2 arguments, got %d", len(args))

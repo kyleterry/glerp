@@ -41,6 +41,7 @@ const (
 	DQuote
 	Backtick
 	Comma
+	CommaAt
 	delimeter_end
 
 	keyword_beg
@@ -85,6 +86,7 @@ var tokens = [...]string{
 	DQuote:    "\"",
 	Backtick:  "`",
 	Comma:     ",",
+	CommaAt:   ",@",
 	Car:       "car",
 	Cdr:       "cdr",
 	Cons:      "cons",

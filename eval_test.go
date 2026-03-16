@@ -94,6 +94,15 @@ func TestEval(t *testing.T) {
 		{"quote long form", "(quote (a b c))", "(a b c)"},
 		{"quote atom", "'hello", "hello"},
 
+		// quasiquote / unquote / unquote-splicing
+		{"quasiquote plain", "`(1 2 3)", "(1 2 3)"},
+		{"quasiquote atom", "`hello", "hello"},
+		{"unquote", "(define x 42) `(a ,x c)", "(a 42 c)"},
+		{"unquote expr", "`(a ,(+ 1 2) c)", "(a 3 c)"},
+		{"unquote-splicing", "(define xs '(2 3)) `(1 ,@xs 4)", "(1 2 3 4)"},
+		{"unquote-splicing empty", "`(1 ,@'() 2)", "(1 2)"},
+		{"quasiquote nested lists", "`((a ,(+ 1 1)) (b ,(+ 2 2)))", "((a 2) (b 4))"},
+
 		// list operations
 		{"car", "(car '(1 2 3))", "1"},
 		{"cdr", "(cdr '(1 2 3))", "(2 3)"},

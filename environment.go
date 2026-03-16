@@ -55,13 +55,18 @@ func (e *Environment) RegisterForm(name string, fn FormFn) {
 // to NewEnvironment.
 func StandardForms() map[string]FormFn {
 	return map[string]FormFn{
-		"define":        evalDefine,
-		"lambda":        evalLambda,
-		"if":            evalIf,
-		"let":           evalLet,
-		"let*":          evalLetStar,
-		"set!":          evalSetBang,
-		"quote":         evalQuote,
+		"define":     evalDefine,
+		"lambda":     evalLambda,
+		"if":         evalIf,
+		"let":        evalLet,
+		"let*":       evalLetStar,
+		"set!":       evalSetBang,
+		"quote":      evalQuote,
+		"quasiquote": evalQuasiquote,
+		"unquote":    func(_ []Expr, _ *Environment) (Expr, error) { return nil, fmt.Errorf("unquote: not inside quasiquote") },
+		"unquote-splicing": func(_ []Expr, _ *Environment) (Expr, error) {
+			return nil, fmt.Errorf("unquote-splicing: not inside quasiquote")
+		},
 		"define-values": evalDefineValues,
 		"case":          evalCase,
 		"do":            evalDo,
