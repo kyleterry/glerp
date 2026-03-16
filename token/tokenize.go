@@ -154,7 +154,7 @@ func (t *Tokenizer) tokenizeLine(line string) []Token {
 			} else {
 				tokens = append(tokens, Token{Kind: Comma, Value: ","})
 			}
-		case IsDelimeter(string(r)):
+		case IsDelimiter(string(r)):
 			if t.current != "" {
 				tokens = append(tokens, Token{
 					Kind:  Lookup(t.current),

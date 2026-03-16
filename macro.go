@@ -148,7 +148,7 @@ func matchList(patElems, formElems []Expr, literals map[string]bool, b *macroBin
 			if canConsume < 0 {
 				return false
 			}
-			for j := 0; j < canConsume; j++ {
+			for j := range canConsume {
 				sub := newMacroBindings()
 				if !matchPattern(subPat, formElems[fi+j], literals, sub) {
 					return false
@@ -302,7 +302,7 @@ func doExpand(template Expr, b *macroBindings, literals map[string]bool, renames
 						return nil, fmt.Errorf("syntax: ellipsis variables %q and %q have different match counts", evars[0], v)
 					}
 				}
-				for j := 0; j < count; j++ {
+				for j := range count {
 					sub := &macroBindings{
 						vars:     copyBindings(b.vars),
 						ellipsis: b.ellipsis,

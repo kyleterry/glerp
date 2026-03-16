@@ -16,21 +16,21 @@ type BuiltinFn func([]Expr) (Expr, error)
 // to NewEnvironment.
 func StandardBuiltins() map[string]BuiltinFn {
 	m := map[string]BuiltinFn{
-		"+":          builtinAdd,
-		"-":          builtinSub,
-		"*":          builtinMul,
-		"/":          builtinDiv,
-		"<":          builtinLess,
-		">":          builtinGreater,
-		"<=":         builtinLessEq,
-		">=":         builtinGreaterEq,
-		"=":          builtinNumEq,
-		"not":        builtinNot,
-		"car":        builtinCar,
-		"cdr":        builtinCdr,
-		"cons":       builtinCons,
-		"empty?":     builtinEmpty,
-		"list":       builtinList,
+		"+":             builtinAdd,
+		"-":             builtinSub,
+		"*":             builtinMul,
+		"/":             builtinDiv,
+		"<":             builtinLess,
+		">":             builtinGreater,
+		"<=":            builtinLessEq,
+		">=":            builtinGreaterEq,
+		"=":             builtinNumEq,
+		"not":           builtinNot,
+		"car":           builtinCar,
+		"cdr":           builtinCdr,
+		"cons":          builtinCons,
+		"empty?":        builtinEmpty,
+		"list":          builtinList,
 		"display":       builtinDisplay,
 		"display-ln":    builtinDisplayLn,
 		"newline":       builtinNewline,
@@ -43,7 +43,7 @@ func StandardBuiltins() map[string]BuiltinFn {
 	return m
 }
 
-// cxrBuiltins generates all caar/cadr/…/cddddr compositions (2–4 a/d letters).
+// cxrBuiltins generates all caar/cadr/.../cddddr compositions (2–4 a/d letters).
 // Each function applies car (a) or cdr (d) right-to-left, so cadr is
 // equivalent to (car (cdr x)).
 func cxrBuiltins() map[string]BuiltinFn {
@@ -146,6 +146,9 @@ func builtinDiv(args []Expr) (Expr, error) {
 		return nil, err
 	}
 	if len(args) == 1 {
+		if first == 0 {
+			return nil, fmt.Errorf("/: division by zero")
+		}
 		return num(1 / first), nil
 	}
 	for _, a := range args[1:] {
@@ -161,80 +164,30 @@ func builtinDiv(args []Expr) (Expr, error) {
 	return num(first), nil
 }
 
-func builtinLess(args []Expr) (Expr, error) {
-	if len(args) != 2 {
-		return nil, fmt.Errorf("<: expected 2 arguments, got %d", len(args))
+func numCmp(name string, op func(a, b float64) bool) BuiltinFn {
+	return func(args []Expr) (Expr, error) {
+		if len(args) != 2 {
+			return nil, fmt.Errorf("%s: expected 2 arguments, got %d", name, len(args))
+		}
+		a, err := toNum(name, args[0])
+		if err != nil {
+			return nil, err
+		}
+		b, err := toNum(name, args[1])
+		if err != nil {
+			return nil, err
+		}
+		return boolean(op(a, b)), nil
 	}
-	a, err := toNum("<", args[0])
-	if err != nil {
-		return nil, err
-	}
-	b, err := toNum("<", args[1])
-	if err != nil {
-		return nil, err
-	}
-	return boolean(a < b), nil
 }
 
-func builtinGreater(args []Expr) (Expr, error) {
-	if len(args) != 2 {
-		return nil, fmt.Errorf(">: expected 2 arguments, got %d", len(args))
-	}
-	a, err := toNum(">", args[0])
-	if err != nil {
-		return nil, err
-	}
-	b, err := toNum(">", args[1])
-	if err != nil {
-		return nil, err
-	}
-	return boolean(a > b), nil
-}
-
-func builtinLessEq(args []Expr) (Expr, error) {
-	if len(args) != 2 {
-		return nil, fmt.Errorf("<=: expected 2 arguments, got %d", len(args))
-	}
-	a, err := toNum("<=", args[0])
-	if err != nil {
-		return nil, err
-	}
-	b, err := toNum("<=", args[1])
-	if err != nil {
-		return nil, err
-	}
-	return boolean(a <= b), nil
-}
-
-func builtinGreaterEq(args []Expr) (Expr, error) {
-	if len(args) != 2 {
-		return nil, fmt.Errorf(">=: expected 2 arguments, got %d", len(args))
-	}
-	a, err := toNum(">=", args[0])
-	if err != nil {
-		return nil, err
-	}
-	b, err := toNum(">=", args[1])
-	if err != nil {
-		return nil, err
-	}
-	return boolean(a >= b), nil
-}
-
-func builtinNumEq(args []Expr) (Expr, error) {
-	if len(args) != 2 {
-		return nil, fmt.Errorf("=: expected 2 arguments, got %d", len(args))
-	}
-	a, err := toNum("=", args[0])
-	if err != nil {
-		return nil, err
-	}
-	b, err := toNum("=", args[1])
-	if err != nil {
-		return nil, err
-	}
-	return boolean(a == b), nil
-}
+var (
+	builtinLess      = numCmp("<", func(a, b float64) bool { return a < b })
+	builtinGreater   = numCmp(">", func(a, b float64) bool { return a > b })
+	builtinLessEq    = numCmp("<=", func(a, b float64) bool { return a <= b })
+	builtinGreaterEq = numCmp(">=", func(a, b float64) bool { return a >= b })
+	builtinNumEq     = numCmp("=", func(a, b float64) bool { return a == b })
+)
 
 func builtinNot(args []Expr) (Expr, error) {
 	if len(args) != 1 {

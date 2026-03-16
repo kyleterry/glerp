@@ -4,7 +4,7 @@ package token
 
 var (
 	keywords   map[string]TokenKind
-	delimeters map[string]TokenKind
+	delimiters map[string]TokenKind
 )
 
 // Token is a lexical entity containing a component of the scheme language.
@@ -31,7 +31,7 @@ const (
 	InterpString
 	literal_end
 
-	delimeter_beg
+	delimiter_beg
 	LParen
 	LBrack
 	LBrace
@@ -43,7 +43,7 @@ const (
 	Backtick
 	Comma
 	CommaAt
-	delimeter_end
+	delimiter_end
 
 	keyword_beg
 	Car
@@ -119,8 +119,8 @@ func (t TokenKind) String() string {
 	return tokens[t]
 }
 
-func (t TokenKind) IsDelimeter() bool {
-	return delimeter_beg < t && t < delimeter_end
+func (t TokenKind) IsDelimiter() bool {
+	return delimiter_beg < t && t < delimiter_end
 }
 
 func (t TokenKind) IsKeyword() bool {
@@ -132,7 +132,7 @@ func (t TokenKind) IsLiteral() bool {
 }
 
 func Lookup(s string) TokenKind {
-	if tok, ok := delimeters[s]; ok {
+	if tok, ok := delimiters[s]; ok {
 		return tok
 	} else if tok, ok := keywords[s]; ok {
 		return tok
@@ -145,8 +145,8 @@ func Lookup(s string) TokenKind {
 	return Atom
 }
 
-func IsDelimeter(s string) bool {
-	_, ok := delimeters[s]
+func IsDelimiter(s string) bool {
+	_, ok := delimiters[s]
 
 	return ok
 }
@@ -163,8 +163,8 @@ func init() {
 		keywords[tokens[i]] = i
 	}
 
-	delimeters = make(map[string]TokenKind, delimeter_end-delimeter_beg)
-	for i := delimeter_beg + 1; i < delimeter_end; i++ {
-		delimeters[tokens[i]] = i
+	delimiters = make(map[string]TokenKind, delimiter_end-delimiter_beg)
+	for i := delimiter_beg + 1; i < delimiter_end; i++ {
+		delimiters[tokens[i]] = i
 	}
 }
