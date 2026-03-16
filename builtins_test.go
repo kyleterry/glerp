@@ -8,6 +8,8 @@ import (
 )
 
 func TestBuiltins(t *testing.T) {
+	t.Setenv("GLERP_TEST_VAR", "test-value-42")
+
 	tests := []struct {
 		name string
 		src  string
@@ -60,6 +62,21 @@ func TestBuiltins(t *testing.T) {
 		{"modulo negative divisor", "(modulo 10 -3)", "-2"},
 		{"remainder positive", "(remainder 10 3)", "1"},
 		{"remainder negative dividend", "(remainder -10 3)", "-1"},
+
+		// get-environment-variable
+		{"get-env-var found", `(get-environment-variable "GLERP_TEST_VAR")`, `"test-value-42"`},
+		{"get-env-var not found", `(get-environment-variable "GLERP_NONEXISTENT_VAR")`, "#f"},
+
+		// get-environment-variables
+		{"get-env-vars is list", `(list? (get-environment-variables))`, "#t"},
+		{"get-env-vars contains test var", `
+			(define (find-var vars name)
+			  (cond
+			    ((null? vars) #f)
+			    ((equal? (caar vars) name) (car vars))
+			    (else (find-var (cdr vars) name))))
+			(cadr (find-var (get-environment-variables) "GLERP_TEST_VAR"))
+		`, `"test-value-42"`},
 	}
 
 	for _, tt := range tests {

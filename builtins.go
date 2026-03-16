@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"os"
 	"strings"
 )
 
@@ -49,8 +50,10 @@ func StandardBuiltins() map[string]BuiltinFn {
 		"display-ln":    builtinDisplayLn,
 		"newline":       builtinNewline,
 		"values":        builtinValues,
-		"string-append": builtinStringAppend,
-		"->string":      builtinToString,
+		"string-append":              builtinStringAppend,
+		"->string":                   builtinToString,
+		"get-environment-variable":   builtinGetEnvVar,
+		"get-environment-variables":  builtinGetEnvVars,
 	}
 
 	maps.Copy(m, cxrBuiltins())
@@ -453,4 +456,43 @@ func builtinRemainder(args []Expr) (Expr, error) {
 	}
 
 	return num(math.Mod(a, b)), nil
+}
+
+func builtinGetEnvVar(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("get-environment-variable: expected 1 argument, got %d", len(args))
+	}
+
+	s, ok := args[0].(*StringExpr)
+	if !ok {
+		return nil, fmt.Errorf("get-environment-variable: expected string, got %s", args[0].String())
+	}
+
+	val, found := os.LookupEnv(s.val)
+	if !found {
+		return boolean(false), nil
+	}
+
+	return &StringExpr{val: val}, nil
+}
+
+func builtinGetEnvVars(args []Expr) (Expr, error) {
+	if len(args) != 0 {
+		return nil, fmt.Errorf("get-environment-variables: expected 0 arguments, got %d", len(args))
+	}
+
+	environ := os.Environ()
+	entries := make([]Expr, 0, len(environ))
+
+	for _, entry := range environ {
+		k, v, _ := strings.Cut(entry, "=")
+		entries = append(entries, &ListExpr{
+			elements: []Expr{
+				&StringExpr{val: k},
+				&StringExpr{val: v},
+			},
+		})
+	}
+
+	return &ListExpr{elements: entries}, nil
 }
