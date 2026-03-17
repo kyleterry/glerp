@@ -3,11 +3,7 @@
 // scripting use cases.
 package glerp
 
-import (
-	"strings"
-
-	"go.e64ec.com/glerp/token"
-)
+import "strings"
 
 // voidSingleton is the single shared VoidExpr instance.
 var voidSingleton Expr = &VoidExpr{}
@@ -20,7 +16,7 @@ func Void() Expr { return voidSingleton }
 // Eval is a convenience function that parses and evaluates all top-level
 // expressions in src within env, returning the result of each one.
 func Eval(src string, env *Environment) ([]Expr, error) {
-	lexer, err := token.NewLexer(strings.NewReader(src))
+	lexer, err := NewLexer(strings.NewReader(src))
 	if err != nil {
 		return nil, err
 	}

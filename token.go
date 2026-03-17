@@ -1,6 +1,6 @@
-// package token defines the tokens used in the lexer and parser. This file is
+// Token types and lookup tables for the lexer and parser. This file is
 // influenced by the Go language's token package.
-package token
+package glerp
 
 var (
 	keywords   map[string]TokenKind
@@ -69,7 +69,7 @@ const (
 )
 
 // This array's order must match the order of the TokenKind constants above.
-var tokens = [...]string{
+var tokenNames = [...]string{
 	Illegal:      "ILLEGAL",
 	EOF:          "EOF",
 	Comment:      ";",
@@ -110,13 +110,12 @@ var tokens = [...]string{
 	Divide:       "/",
 }
 
-// String returns the value size of the tokens mapping. This value is the
-// representation of the token. For non-form tokens, the string returned will
-// be the constant name (e.g. String would be "STRING"). For form tokens, the
-// string returned is the actual char sequence (e.g. Less would be "<" and Cdr
-// would be "cdr").
+// String returns the string representation of the token kind. For non-form
+// tokens, the string returned will be the constant name (e.g. String would be
+// "STRING"). For form tokens, the string returned is the actual char sequence
+// (e.g. Less would be "<" and Cdr would be "cdr").
 func (t TokenKind) String() string {
-	return tokens[t]
+	return tokenNames[t]
 }
 
 func (t TokenKind) IsDelimiter() bool {
@@ -131,7 +130,7 @@ func (t TokenKind) IsLiteral() bool {
 	return literal_beg < t && t < literal_end
 }
 
-func Lookup(s string) TokenKind {
+func lookupToken(s string) TokenKind {
 	if tok, ok := delimiters[s]; ok {
 		return tok
 	}
@@ -147,14 +146,8 @@ func Lookup(s string) TokenKind {
 	return Atom
 }
 
-func IsDelimiter(s string) bool {
+func isDelimiter(s string) bool {
 	_, ok := delimiters[s]
-
-	return ok
-}
-
-func IsKeyword(s string) bool {
-	_, ok := keywords[s]
 
 	return ok
 }
@@ -163,12 +156,12 @@ func init() {
 	keywords = make(map[string]TokenKind, keyword_end-keyword_beg)
 
 	for i := keyword_beg + 1; i < keyword_end; i++ {
-		keywords[tokens[i]] = i
+		keywords[tokenNames[i]] = i
 	}
 
 	delimiters = make(map[string]TokenKind, delimiter_end-delimiter_beg)
 
 	for i := delimiter_beg + 1; i < delimiter_end; i++ {
-		delimiters[tokens[i]] = i
+		delimiters[tokenNames[i]] = i
 	}
 }

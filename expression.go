@@ -4,27 +4,25 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-
-	"go.e64ec.com/glerp/token"
 )
 
 // Expr is any scheme value or expression that can be evaluated.
 type Expr interface {
 	Eval(env *Environment) (Expr, error)
-	Token() token.Token
+	Token() Token
 	String() string
 }
 
 // NumberExpr is a numeric literal.
 type NumberExpr struct {
-	tok token.Token
+	tok Token
 	val float64
 }
 
 func (e *NumberExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
 
 // Token returns the source token for this expression.
-func (e *NumberExpr) Token() token.Token { return e.tok }
+func (e *NumberExpr) Token() Token { return e.tok }
 
 // Value returns the underlying float64 value.
 func (e *NumberExpr) Value() float64 { return e.val }
@@ -38,14 +36,14 @@ func (e *NumberExpr) String() string {
 
 // StringExpr is a string literal.
 type StringExpr struct {
-	tok token.Token
+	tok Token
 	val string
 }
 
 func (e *StringExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
 
 // Token returns the source token for this expression.
-func (e *StringExpr) Token() token.Token { return e.tok }
+func (e *StringExpr) Token() Token { return e.tok }
 
 // Value returns the raw string contents, without surrounding quotes.
 func (e *StringExpr) Value() string { return e.val }
@@ -55,14 +53,14 @@ func (e *StringExpr) String() string { return fmt.Sprintf("%q", e.val) }
 
 // BoolExpr is a boolean value (#t or #f).
 type BoolExpr struct {
-	tok token.Token
+	tok Token
 	val bool
 }
 
 func (e *BoolExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
 
 // Token returns the source token for this expression.
-func (e *BoolExpr) Token() token.Token { return e.tok }
+func (e *BoolExpr) Token() Token { return e.tok }
 
 // Value returns the underlying boolean. Only #f is false; everything else is truthy.
 func (e *BoolExpr) Value() bool { return e.val }
@@ -76,7 +74,7 @@ func (e *BoolExpr) String() string {
 
 // SymbolExpr is a symbol that resolves to a value via environment lookup.
 type SymbolExpr struct {
-	tok token.Token
+	tok Token
 	val string
 }
 
@@ -85,7 +83,7 @@ func (e *SymbolExpr) Eval(env *Environment) (Expr, error) {
 }
 
 // Token returns the source token for this expression.
-func (e *SymbolExpr) Token() token.Token { return e.tok }
+func (e *SymbolExpr) Token() Token { return e.tok }
 
 // String returns the symbol name.
 func (e *SymbolExpr) String() string { return e.val }
@@ -93,12 +91,12 @@ func (e *SymbolExpr) String() string { return e.val }
 // ListExpr is a parenthesized s-expression. Evaluation dispatches on the head:
 // special forms are handled directly; otherwise it is a procedure application.
 type ListExpr struct {
-	tok      token.Token
+	tok      Token
 	elements []Expr
 }
 
 // Token returns the source token for this expression.
-func (e *ListExpr) Token() token.Token { return e.tok }
+func (e *ListExpr) Token() Token { return e.tok }
 
 // Elements returns the expressions contained in this list.
 func (e *ListExpr) Elements() []Expr { return e.elements }
@@ -161,7 +159,7 @@ func (e *ListExpr) Eval(env *Environment) (Expr, error) {
 
 // LambdaExpr is a user-defined procedure (closure).
 type LambdaExpr struct {
-	tok    token.Token
+	tok    Token
 	params []string
 	rest   string // non-empty when the lambda accepts variadic trailing args
 	body   []Expr
@@ -171,7 +169,7 @@ type LambdaExpr struct {
 func (e *LambdaExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
 
 // Token returns the source token for this expression.
-func (e *LambdaExpr) Token() token.Token { return e.tok }
+func (e *LambdaExpr) Token() Token { return e.tok }
 
 // String returns a summary representation showing the parameter list.
 func (e *LambdaExpr) String() string {
@@ -196,7 +194,7 @@ type FormExpr struct {
 func (e *FormExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
 
 // Token returns an empty token; FormExpr values have no source position.
-func (e *FormExpr) Token() token.Token { return token.Token{} }
+func (e *FormExpr) Token() Token { return Token{} }
 
 // String returns a display name identifying this as a special form.
 func (e *FormExpr) String() string { return fmt.Sprintf("#<form:%s>", e.name) }
@@ -211,7 +209,7 @@ type ValuesExpr struct {
 func (e *ValuesExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
 
 // Token returns an empty token; ValuesExpr values have no source position.
-func (e *ValuesExpr) Token() token.Token { return token.Token{} }
+func (e *ValuesExpr) Token() Token { return Token{} }
 
 // String returns a readable representation of all contained values.
 func (e *ValuesExpr) String() string {
@@ -235,7 +233,7 @@ type VoidExpr struct{}
 func (e *VoidExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
 
 // Token returns an empty token; VoidExpr has no source position.
-func (e *VoidExpr) Token() token.Token { return token.Token{} }
+func (e *VoidExpr) Token() Token { return Token{} }
 
 // String returns an empty string; void is intentionally invisible.
 func (e *VoidExpr) String() string { return "" }
@@ -249,7 +247,7 @@ type BuiltinExpr struct {
 func (e *BuiltinExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
 
 // Token returns an empty token; BuiltinExpr values have no source position.
-func (e *BuiltinExpr) Token() token.Token { return token.Token{} }
+func (e *BuiltinExpr) Token() Token { return Token{} }
 
 // String returns a display name identifying this as a built-in procedure.
 func (e *BuiltinExpr) String() string { return fmt.Sprintf("#<builtin:%s>", e.name) }
@@ -507,7 +505,7 @@ func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		sym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "unquote"}, val: "unquote"}
+		sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "unquote"}, val: "unquote"}
 		return &ListExpr{tok: expr.Token(), elements: []Expr{sym, expanded}}, nil
 	}
 
@@ -519,7 +517,7 @@ func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		sym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "quasiquote"}, val: "quasiquote"}
+		sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "quasiquote"}, val: "quasiquote"}
 		return &ListExpr{tok: expr.Token(), elements: []Expr{sym, expanded}}, nil
 	}
 
@@ -556,7 +554,7 @@ func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
 				return nil, err
 			}
 
-			sym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "unquote-splicing"}, val: "unquote-splicing"}
+			sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "unquote-splicing"}, val: "unquote-splicing"}
 			result = append(result, &ListExpr{tok: el.Token(), elements: []Expr{sym, expanded}})
 			continue
 		}

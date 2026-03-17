@@ -4,21 +4,19 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-
-	"go.e64ec.com/glerp/token"
 )
 
 // Parser converts a token stream into a slice of Expr values ready for
 // evaluation. It is a recursive-descent parser for s-expressions.
 type Parser struct {
-	lexer *token.Lexer
+	lexer *Lexer
 }
 
 // Run parses all top-level expressions from the token stream.
 func (p *Parser) Run() ([]Expr, error) {
 	var exprs []Expr
 
-	for p.lexer.PeekToken().Kind != token.EOF {
+	for p.lexer.PeekToken().Kind != EOF {
 		expr, err := p.parseExpr()
 		if err != nil {
 			return nil, err
@@ -32,10 +30,10 @@ func (p *Parser) Run() ([]Expr, error) {
 func (p *Parser) parseExpr() (Expr, error) {
 	tok := p.lexer.PeekToken()
 	switch tok.Kind {
-	case token.LParen, token.LBrack:
+	case LParen, LBrack:
 		return p.parseList()
 
-	case token.Quote:
+	case Quote:
 		// Desugar 'expr → (quote expr)
 		p.lexer.NextToken()
 		inner, err := p.parseExpr()
@@ -43,42 +41,42 @@ func (p *Parser) parseExpr() (Expr, error) {
 			return nil, err
 		}
 		quoteSym := &SymbolExpr{
-			tok: token.Token{Kind: token.QuoteLong, Value: "quote"},
+			tok: Token{Kind: QuoteLong, Value: "quote"},
 			val: "quote",
 		}
 		return &ListExpr{tok: tok, elements: []Expr{quoteSym, inner}}, nil
 
-	case token.Backtick:
+	case Backtick:
 		// Desugar `expr → (quasiquote expr)
 		p.lexer.NextToken()
 		inner, err := p.parseExpr()
 		if err != nil {
 			return nil, err
 		}
-		sym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "quasiquote"}, val: "quasiquote"}
+		sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "quasiquote"}, val: "quasiquote"}
 		return &ListExpr{tok: tok, elements: []Expr{sym, inner}}, nil
 
-	case token.Comma:
+	case Comma:
 		// Desugar ,expr → (unquote expr)
 		p.lexer.NextToken()
 		inner, err := p.parseExpr()
 		if err != nil {
 			return nil, err
 		}
-		sym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "unquote"}, val: "unquote"}
+		sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "unquote"}, val: "unquote"}
 		return &ListExpr{tok: tok, elements: []Expr{sym, inner}}, nil
 
-	case token.CommaAt:
+	case CommaAt:
 		// Desugar ,@expr → (unquote-splicing expr)
 		p.lexer.NextToken()
 		inner, err := p.parseExpr()
 		if err != nil {
 			return nil, err
 		}
-		sym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "unquote-splicing"}, val: "unquote-splicing"}
+		sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "unquote-splicing"}, val: "unquote-splicing"}
 		return &ListExpr{tok: tok, elements: []Expr{sym, inner}}, nil
 
-	case token.Number:
+	case Number:
 		p.lexer.NextToken()
 		v, err := strconv.ParseFloat(tok.Value, 64)
 		if err != nil {
@@ -86,34 +84,34 @@ func (p *Parser) parseExpr() (Expr, error) {
 		}
 		return &NumberExpr{tok: tok, val: v}, nil
 
-	case token.String:
+	case String:
 		p.lexer.NextToken()
 		return &StringExpr{tok: tok, val: tok.Value}, nil
 
-	case token.InterpString:
+	case InterpString:
 		p.lexer.NextToken()
 		return parseInterpString(tok)
 
-	case token.BTrue:
+	case BTrue:
 		p.lexer.NextToken()
 		return &BoolExpr{tok: tok, val: true}, nil
 
-	case token.BFalse:
+	case BFalse:
 		p.lexer.NextToken()
 		return &BoolExpr{tok: tok, val: false}, nil
 
-	case token.Comment:
+	case Comment:
 		// Skip comment tokens and parse the next expression.
 		p.lexer.NextToken()
 		return p.parseExpr()
 
-	case token.EOF:
+	case EOF:
 		return nil, fmt.Errorf("unexpected EOF")
 
 	default:
 		// Keywords (define, lambda, if, car, …) and plain symbols are all
 		// represented as SymbolExpr; special-form dispatch happens at eval time.
-		if tok.Kind.IsKeyword() || tok.Kind == token.Symbol {
+		if tok.Kind.IsKeyword() || tok.Kind == Symbol {
 			p.lexer.NextToken()
 			return &SymbolExpr{tok: tok, val: tok.Value}, nil
 		}
@@ -123,9 +121,9 @@ func (p *Parser) parseExpr() (Expr, error) {
 
 func (p *Parser) parseList() (Expr, error) {
 	open := p.lexer.NextToken() // consume '(' or '['
-	close := token.RParen
-	if open.Kind == token.LBrack {
-		close = token.RBrack
+	close := RParen
+	if open.Kind == LBrack {
+		close = RBrack
 	}
 
 	var elements []Expr
@@ -136,7 +134,7 @@ func (p *Parser) parseList() (Expr, error) {
 			p.lexer.NextToken()
 			break
 		}
-		if peek.Kind == token.EOF {
+		if peek.Kind == EOF {
 			return nil, fmt.Errorf("unexpected EOF: unclosed '%s'", open.Value)
 		}
 		expr, err := p.parseExpr()
@@ -150,7 +148,7 @@ func (p *Parser) parseList() (Expr, error) {
 }
 
 // NewParser creates a parser that reads from the given lexer.
-func NewParser(lexer *token.Lexer) *Parser {
+func NewParser(lexer *Lexer) *Parser {
 	return &Parser{lexer: lexer}
 }
 
@@ -200,7 +198,7 @@ func splitInterp(s string) []interpSegment {
 // parseInterpString desugars an InterpString token into a string-append call.
 // $"Hello {name}!" becomes (string-append "Hello " (->string name) "!").
 // If there are no interpolations the result is a plain StringExpr.
-func parseInterpString(tok token.Token) (Expr, error) {
+func parseInterpString(tok Token) (Expr, error) {
 	segs := splitInterp(tok.Value)
 
 	// No interpolations — plain string literal.
@@ -215,8 +213,8 @@ func parseInterpString(tok token.Token) (Expr, error) {
 		return &StringExpr{tok: tok, val: tok.Value}, nil
 	}
 
-	appendSym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "string-append"}, val: "string-append"}
-	toStrSym := &SymbolExpr{tok: token.Token{Kind: token.Symbol, Value: "->string"}, val: "->string"}
+	appendSym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "string-append"}, val: "string-append"}
+	toStrSym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "->string"}, val: "->string"}
 
 	var parts []Expr
 
@@ -227,7 +225,7 @@ func parseInterpString(tok token.Token) (Expr, error) {
 			}
 			continue
 		}
-		lexer, err := token.NewLexer(strings.NewReader(seg.text))
+		lexer, err := NewLexer(strings.NewReader(seg.text))
 		if err != nil {
 			return nil, fmt.Errorf("interpolation {%s}: %w", seg.text, err)
 		}

@@ -1,10 +1,11 @@
-package token
+package glerp
 
 import (
 	"fmt"
 	"io"
 )
 
+// Lexer is a token stream that supports peeking and consuming.
 type Lexer struct {
 	tokens []Token
 }

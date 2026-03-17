@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"maps"
 	"sync/atomic"
-
-	"go.e64ec.com/glerp/token"
 )
 
 // gensymCounter generates unique names for hygienic macro expansion.
@@ -38,7 +36,7 @@ type macroRule struct {
 }
 
 func (e *SyntaxRulesExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
-func (e *SyntaxRulesExpr) Token() token.Token                { return token.Token{} }
+func (e *SyntaxRulesExpr) Token() Token                { return Token{} }
 func (e *SyntaxRulesExpr) String() string {
 	return fmt.Sprintf("#<syntax-transformer %s>", e.name)
 }

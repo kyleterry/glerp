@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-
-	"go.e64ec.com/glerp/token"
 )
 
 // Config wraps an Environment and provides typed value extraction for use
@@ -33,7 +31,7 @@ func EvalFile(path string, env *Environment) error {
 	}
 	defer f.Close() //nolint:errcheck
 
-	lexer, err := token.NewLexer(f)
+	lexer, err := NewLexer(f)
 	if err != nil {
 		return fmt.Errorf("lexer: %w", err)
 	}

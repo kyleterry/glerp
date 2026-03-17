@@ -1,4 +1,4 @@
-package token
+package glerp
 
 import (
 	"bufio"
@@ -6,14 +6,14 @@ import (
 	"unicode"
 )
 
-type mode int
+type tokenizerMode int
 
 const (
-	normal mode = iota
-	quoted
-	interpString // inside $"...", outside a {} block
-	interpExpr   // inside {} within an interpolated string
-	interpQuoted // inside a "" string literal within a {} block
+	modeNormal tokenizerMode = iota
+	modeQuoted
+	modeInterpString // inside $"...", outside a {} block
+	modeInterpExpr   // inside {} within an interpolated string
+	modeInterpQuoted // inside a "" string literal within a {} block
 )
 
 // Tokenizer can read from a reader and split the content up into Tokens. It
@@ -26,7 +26,7 @@ const (
 type Tokenizer struct {
 	toks       []Token
 	current    string
-	mode       mode
+	mode       tokenizerMode
 	braceDepth int
 }
 
@@ -53,7 +53,7 @@ func (t *Tokenizer) Run(r io.Reader) ([]Token, error) {
 }
 
 func (t *Tokenizer) tokenizeLine(line string) []Token {
-	var tokens []Token
+	var toks []Token
 	skip := false
 
 	for i, r := range line {
@@ -62,33 +62,33 @@ func (t *Tokenizer) tokenizeLine(line string) []Token {
 			continue
 		}
 
-		if t.mode == quoted {
+		if t.mode == modeQuoted {
 			if r != '"' {
 				t.current += string(r)
 			}
 
 			if r == '"' {
-				tokens = append(tokens, Token{
+				toks = append(toks, Token{
 					Kind:  String,
 					Value: t.current,
 				})
 
 				t.current = ""
-				t.mode = normal
+				t.mode = modeNormal
 			}
 
 			continue
 		}
 
-		if t.mode == interpString {
+		if t.mode == modeInterpString {
 			switch r {
 			case '"':
-				tokens = append(tokens, Token{Kind: InterpString, Value: t.current})
+				toks = append(toks, Token{Kind: InterpString, Value: t.current})
 				t.current = ""
-				t.mode = normal
+				t.mode = modeNormal
 			case '{':
 				t.current += "{"
-				t.mode = interpExpr
+				t.mode = modeInterpExpr
 				t.braceDepth = 1
 			default:
 				t.current += string(r)
@@ -96,7 +96,7 @@ func (t *Tokenizer) tokenizeLine(line string) []Token {
 			continue
 		}
 
-		if t.mode == interpExpr {
+		if t.mode == modeInterpExpr {
 			switch r {
 			case '{':
 				t.braceDepth++
@@ -105,21 +105,21 @@ func (t *Tokenizer) tokenizeLine(line string) []Token {
 				t.braceDepth--
 				t.current += "}"
 				if t.braceDepth == 0 {
-					t.mode = interpString
+					t.mode = modeInterpString
 				}
 			case '"':
 				t.current += "\""
-				t.mode = interpQuoted
+				t.mode = modeInterpQuoted
 			default:
 				t.current += string(r)
 			}
 			continue
 		}
 
-		if t.mode == interpQuoted {
+		if t.mode == modeInterpQuoted {
 			t.current += string(r)
 			if r == '"' {
-				t.mode = interpExpr
+				t.mode = modeInterpExpr
 			}
 			continue
 		}
@@ -127,8 +127,8 @@ func (t *Tokenizer) tokenizeLine(line string) []Token {
 		switch {
 		case unicode.IsSpace(r):
 			if t.current != "" {
-				tokens = append(tokens, Token{
-					Kind:  Lookup(t.current),
+				toks = append(toks, Token{
+					Kind:  lookupToken(t.current),
 					Value: t.current,
 				})
 				t.current = ""
@@ -136,50 +136,50 @@ func (t *Tokenizer) tokenizeLine(line string) []Token {
 		case r == '"':
 			if t.current == "$" {
 				t.current = ""
-				t.mode = interpString
+				t.mode = modeInterpString
 			} else {
-				t.mode = quoted
+				t.mode = modeQuoted
 			}
 		case r == ',':
 			if t.current != "" {
-				tokens = append(tokens, Token{
-					Kind:  Lookup(t.current),
+				toks = append(toks, Token{
+					Kind:  lookupToken(t.current),
 					Value: t.current,
 				})
 				t.current = ""
 			}
 			if i+1 < len(line) && line[i+1] == '@' {
-				tokens = append(tokens, Token{Kind: CommaAt, Value: ",@"})
+				toks = append(toks, Token{Kind: CommaAt, Value: ",@"})
 				skip = true
 			} else {
-				tokens = append(tokens, Token{Kind: Comma, Value: ","})
+				toks = append(toks, Token{Kind: Comma, Value: ","})
 			}
-		case IsDelimiter(string(r)):
+		case isDelimiter(string(r)):
 			if t.current != "" {
-				tokens = append(tokens, Token{
-					Kind:  Lookup(t.current),
+				toks = append(toks, Token{
+					Kind:  lookupToken(t.current),
 					Value: t.current,
 				})
 				t.current = ""
 			}
 
-			tokens = append(tokens, Token{
-				Kind:  Lookup(string(r)),
+			toks = append(toks, Token{
+				Kind:  lookupToken(string(r)),
 				Value: string(r),
 			})
 		case r == ';':
-			tokens = append(tokens, Token{
+			toks = append(toks, Token{
 				Kind:  Comment,
 				Value: line[i:],
 			})
 
-			return tokens
+			return toks
 		default:
 			t.current += string(r)
 
 			if i == len(line)-1 {
-				tokens = append(tokens, Token{
-					Kind:  Lookup(t.current),
+				toks = append(toks, Token{
+					Kind:  lookupToken(t.current),
 					Value: t.current,
 				})
 				t.current = ""
@@ -187,7 +187,7 @@ func (t *Tokenizer) tokenizeLine(line string) []Token {
 		}
 	}
 
-	return tokens
+	return toks
 }
 
 func (t *Tokenizer) tokenizeAtom(atom string) Token {
@@ -203,5 +203,5 @@ func (t *Tokenizer) tokenizeAtom(atom string) Token {
 
 // NewTokenizer returns a new Tokenizer with its mode set to normal.
 func NewTokenizer() *Tokenizer {
-	return &Tokenizer{mode: normal}
+	return &Tokenizer{mode: modeNormal}
 }

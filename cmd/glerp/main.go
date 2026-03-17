@@ -8,7 +8,6 @@ import (
 
 	"github.com/chzyer/readline"
 	"go.e64ec.com/glerp"
-	"go.e64ec.com/glerp/token"
 )
 
 func main() {
@@ -37,7 +36,7 @@ func runFile(path string) {
 		r = f
 	}
 
-	lexer, err := token.NewLexer(r)
+	lexer, err := glerp.NewLexer(r)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "lexer error: %v\n", err)
 		os.Exit(1)
@@ -149,7 +148,7 @@ func runREPL() {
 		buf.Reset()
 		rl.SetPrompt("> ")
 
-		lexer, err := token.NewLexer(strings.NewReader(src))
+		lexer, err := glerp.NewLexer(strings.NewReader(src))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			continue
