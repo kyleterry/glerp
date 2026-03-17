@@ -267,6 +267,11 @@ func main() {
 }
 ```
 
+The `examples/` directory contains more complete examples:
+[config-dsl](examples/config-dsl) (server, database, routes, and feature-flag
+DSL) and [syntax-macros](examples/syntax-macros) (`when`, `unless`, `->>`, and
+a `check` assertion macro).
+
 ## REPL and file runner
 
 ```

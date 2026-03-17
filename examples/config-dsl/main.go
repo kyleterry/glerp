@@ -1,5 +1,5 @@
-// Command demo shows glerp used as an embedded configuration DSL with
-// custom special forms.
+// Example config-dsl shows glerp used as an embedded configuration DSL
+// with custom special forms.
 //
 // config.scm is written as a proper DSL: (server ...), (database ...),
 // (GET ...), (features ...) are all custom forms registered from Go before

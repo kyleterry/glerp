@@ -1,4 +1,4 @@
-;;; glerp-demo — configuration using a custom DSL
+;;; config-dsl — configuration using a custom DSL
 ;;;
 ;;; (app), (server), (database), (routes), (features), and the HTTP
 ;;; method forms (GET) (POST) (DELETE) are all registered from Go.
