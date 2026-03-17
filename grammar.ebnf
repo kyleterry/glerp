@@ -1,0 +1,124 @@
+(* glerp scheme grammar *)
+
+program     = { expression } ;
+
+expression  = literal
+            | symbol
+            | list
+            | quoted
+            | quasiquoted
+            | unquoted
+            | splice
+            | interp_string
+            | comment ;
+
+(* literals *)
+
+literal     = number | string | boolean ;
+number      = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] ;
+string      = '"' , { char } , '"' ;
+boolean     = "#t" | "#f" ;
+
+(* symbols *)
+
+symbol      = symbol_char , { symbol_char } ;
+symbol_char = letter | digit | "!" | "?" | "-" | "_" | "+"
+            | "*" | "/" | "<" | ">" | "=" | "." | ":" | "@"
+            | "~" | "^" | "&" | "%" ;
+
+(* lists *)
+
+list        = ( "(" | "[" ) , { expression } , ( ")" | "]" ) ;
+
+(* quoting *)
+
+quoted      = "'" , expression
+            | "(", "quote" , expression , ")" ;
+
+quasiquoted = "`" , expression
+            | "(" , "quasiquote" , expression , ")" ;
+
+unquoted    = "," , expression
+            | "(" , "unquote" , expression , ")" ;
+
+splice      = ",@" , expression
+            | "(" , "unquote-splicing" , expression , ")" ;
+
+(* string interpolation *)
+
+interp_string = "$\"" , { interp_segment } , '"' ;
+interp_segment = char_no_brace | "{" , expression , "}" ;
+
+(* comments *)
+
+comment     = ";" , { char } ;
+
+(* special forms *)
+
+define      = "(" , "define" , symbol , expression , ")"
+            | "(" , "define" , "(" , symbol , params , ")" , body , ")" ;
+
+lambda      = "(" , "lambda" , "(" , params , ")" , body , ")" ;
+
+params      = { symbol } , [ "." , symbol ] ;
+body        = expression , { expression } ;
+
+set_bang    = "(" , "set!" , symbol , expression , ")" ;
+
+if_form     = "(" , "if" , expression , expression , [ expression ] , ")" ;
+
+cond        = "(" , "cond" , { cond_clause } , ")" ;
+cond_clause = "(" , expression , body , ")"
+            | "(" , "else" , body , ")" ;
+
+case_form   = "(" , "case" , expression , { case_clause } , ")" ;
+case_clause = "(" , "(" , { literal } , ")" , body , ")"
+            | "(" , "else" , body , ")" ;
+
+let         = "(" , "let"  , "(" , { binding } , ")" , body , ")" ;
+let_star    = "(" , "let*" , "(" , { binding } , ")" , body , ")" ;
+binding     = "(" , symbol , expression , ")" ;
+
+begin       = "(" , "begin" , { expression } , ")" ;
+
+and_form    = "(" , "and" , { expression } , ")" ;
+or_form     = "(" , "or"  , { expression } , ")" ;
+
+do_form     = "(" , "do"
+                , "(" , { do_binding } , ")"
+                , "(" , expression , { expression } , ")"
+                , { expression }
+              , ")" ;
+do_binding  = "(" , symbol , expression , expression , ")" ;
+
+define_values = "(" , "define-values" , "(" , { symbol } , ")" , expression , ")" ;
+
+(* macros *)
+
+define_syntax = "(" , "define-syntax" , symbol , syntax_rules , ")" ;
+syntax_rules  = "(" , "syntax-rules" , "(" , { symbol } , ")"
+                  , { "(" , pattern , template , ")" }
+                , ")" ;
+pattern       = expression ;
+template      = expression ;
+
+(* libraries *)
+
+import_form = "(" , "import" , { import_spec } , ")" ;
+import_spec = lib_path
+            | "(" , "only" , lib_path , symbol , { symbol } , ")" ;
+lib_path    = ":" , symbol , "/" , symbol , { "/" , symbol }
+            | "./" , symbol , { "/" , symbol } ;
+
+export_form = "(" , "export" , ( "#t" | symbol , { symbol } ) , ")" ;
+
+(* procedure call *)
+
+call        = "(" , expression , { expression } , ")" ;
+
+(* terminals *)
+
+letter        = "a" | ... | "z" | "A" | ... | "Z" ;
+digit         = "0" | ... | "9" ;
+char          = ? any character ? ;
+char_no_brace = ? any character except { and } ? ;
