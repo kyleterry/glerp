@@ -5,10 +5,15 @@ program     = { expression } ;
 expression  = literal
             | symbol
             | list
+            | vector
             | quoted
             | quasiquoted
             | unquoted
             | splice
+            | syntax_short
+            | quasisyntax_short
+            | unsyntax_short
+            | unsyntax_splice_short
             | interp_string
             | comment ;
 
@@ -26,9 +31,10 @@ symbol_char = letter | digit | "!" | "?" | "-" | "_" | "+"
             | "*" | "/" | "<" | ">" | "=" | "." | ":" | "@"
             | "~" | "^" | "&" | "%" ;
 
-(* lists *)
+(* lists and vectors *)
 
 list        = ( "(" | "[" ) , { expression } , ( ")" | "]" ) ;
+vector      = "#(" , { expression } , ")" ;
 
 (* quoting *)
 
@@ -43,6 +49,13 @@ unquoted    = "," , expression
 
 splice      = ",@" , expression
             | "(" , "unquote-splicing" , expression , ")" ;
+
+(* syntax shorthands *)
+
+syntax_short         = "#'" , expression ;
+quasisyntax_short    = "#`" , expression ;
+unsyntax_short       = "#," , expression ;
+unsyntax_splice_short = "#,@" , expression ;
 
 (* string interpolation *)
 
@@ -93,14 +106,45 @@ do_binding  = "(" , symbol , expression , expression , ")" ;
 
 define_values = "(" , "define-values" , "(" , { symbol } , ")" , expression , ")" ;
 
-(* macros *)
+(* macros — syntax-rules *)
 
-define_syntax = "(" , "define-syntax" , symbol , syntax_rules , ")" ;
+define_syntax = "(" , "define-syntax" , symbol , ( syntax_rules | transformer ) , ")" ;
+
 syntax_rules  = "(" , "syntax-rules" , "(" , { symbol } , ")"
                   , { "(" , pattern , template , ")" }
                 , ")" ;
+
 pattern       = expression ;
 template      = expression ;
+
+(* macros — syntax-case *)
+
+transformer   = "(" , "lambda" , "(" , symbol , ")" , body , ")" ;
+
+syntax_case   = "(" , "syntax-case" , expression , "(" , { symbol } , ")"
+                  , { syntax_clause }
+                , ")" ;
+syntax_clause = "[" , pattern , body , "]"
+              | "[" , pattern , fender , body , "]" ;
+fender        = expression ;
+
+syntax_form   = "(" , "syntax" , template , ")"
+              | "#'" , template ;
+
+quasisyntax_form = "(" , "quasisyntax" , qs_template , ")"
+                 | "#`" , qs_template ;
+qs_template      = qs_atom | qs_list ;
+qs_atom          = expression ;
+qs_list          = "(" , { qs_element } , ")" ;
+qs_element       = unsyntax_form | unsyntax_splice_form | qs_template ;
+
+unsyntax_form    = "(" , "unsyntax" , expression , ")"
+                 | "#," , expression ;
+unsyntax_splice_form = "(" , "unsyntax-splicing" , expression , ")"
+                     | "#,@" , expression ;
+
+with_syntax   = "(" , "with-syntax" , "(" , { ws_binding } , ")" , body , ")" ;
+ws_binding    = "[" , pattern , expression , "]" ;
 
 (* libraries *)
 
