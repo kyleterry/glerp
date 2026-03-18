@@ -195,5 +195,5 @@ func balanced(s string) bool {
 			depth--
 		}
 	}
-	return depth == 0
+	return depth <= 0
 }
