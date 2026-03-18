@@ -7,8 +7,6 @@
 
 (import :scheme/list :scheme/math)
 
-;; ── macros ────────────────────────────────────────────────────────────────────
-
 ;; (when test body ...) -- evaluate body forms only when test is truthy.
 (define-syntax when
   (syntax-rules ()
@@ -40,16 +38,12 @@
     [(_ expr)
      (report-check (quote expr) expr)]))
 
-;; ── data ──────────────────────────────────────────────────────────────────────
-
 ;; Each reading is (day temp-in-celsius).
 (define readings
   '((Mon 21) (Tue 18) (Wed 24) (Thu 18) (Fri 28) (Sat 24) (Sun 21)))
 
 (define (day r)  (car r))
 (define (temp r) (car (cdr r)))
-
-;; ── statistics ────────────────────────────────────────────────────────────────
 
 (define temps  (map temp readings))
 (define n      (length temps))
@@ -65,8 +59,6 @@
   (->> temps
     (filter (lambda (t) (> t mean)))
     length))
-
-;; ── report ────────────────────────────────────────────────────────────────────
 
 (print-header "Weekly Temperature Report")
 (for-each (lambda (r)
@@ -86,8 +78,6 @@
 
 (unless (>= mean 24)
   (print-kv "note" "cool week"))
-
-;; ── checks ────────────────────────────────────────────────────────────────────
 
 (print-header "Checks")
 (check (= n 7))
