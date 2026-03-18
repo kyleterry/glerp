@@ -61,8 +61,17 @@ func StandardBuiltins() map[string]BuiltinFn {
 		"vector-length":             builtinVectorLength,
 		"vector?":                   typePred("vector?", func(e Expr) bool { _, ok := e.(*VectorExpr); return ok }),
 		"vector->list":              builtinVectorToList,
+		"length":                    builtinLength,
+		"map":                       builtinMap,
+		"apply":                     builtinApply,
+		"append":                    builtinAppend,
 		"list->vector":              builtinListToVector,
 		"vector-fill!":              builtinVectorFill,
+		"symbol->string":            builtinSymbolToString,
+		"string->symbol":            builtinStringToSymbol,
+		"gensym":                    builtinGensym,
+		"datum->syntax":             builtinDatumToSyntax,
+		"syntax->datum":             builtinSyntaxToDatum,
 	}
 
 	maps.Copy(m, cxrBuiltins())
@@ -297,6 +306,89 @@ func builtinCons(args []Expr) (Expr, error) {
 
 func builtinList(args []Expr) (Expr, error) {
 	return &ListExpr{elements: args}, nil
+}
+
+func builtinLength(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("length: expected 1 argument, got %d", len(args))
+	}
+
+	list, ok := args[0].(*ListExpr)
+	if !ok {
+		return nil, fmt.Errorf("length: expected list, got %s", args[0].String())
+	}
+
+	return &NumberExpr{val: float64(len(list.elements))}, nil
+}
+
+func builtinMap(args []Expr) (Expr, error) {
+	if len(args) < 2 {
+		return nil, fmt.Errorf("map: expected at least 2 arguments, got %d", len(args))
+	}
+
+	proc := args[0]
+	list, ok := args[1].(*ListExpr)
+	if !ok {
+		return nil, fmt.Errorf("map: expected list as second argument, got %s", args[1].String())
+	}
+
+	results := make([]Expr, len(list.elements))
+
+	for i, elem := range list.elements {
+		result, err := apply(proc, []Expr{elem})
+		if err != nil {
+			return nil, fmt.Errorf("map: %w", err)
+		}
+
+		results[i] = result
+	}
+
+	return &ListExpr{elements: results}, nil
+}
+
+func builtinApply(args []Expr) (Expr, error) {
+	if len(args) < 2 {
+		return nil, fmt.Errorf("apply: expected at least 2 arguments, got %d", len(args))
+	}
+
+	proc := args[0]
+	last := args[len(args)-1]
+
+	list, ok := last.(*ListExpr)
+	if !ok {
+		return nil, fmt.Errorf("apply: last argument must be a list, got %s", last.String())
+	}
+
+	// Collect leading args + spread the final list
+	allArgs := make([]Expr, 0, len(args)-2+len(list.elements))
+	allArgs = append(allArgs, args[1:len(args)-1]...)
+	allArgs = append(allArgs, list.elements...)
+
+	return apply(proc, allArgs)
+}
+
+func builtinAppend(args []Expr) (Expr, error) {
+	if len(args) == 0 {
+		return &ListExpr{elements: nil}, nil
+	}
+
+	var result []Expr
+
+	for i, arg := range args {
+		list, ok := arg.(*ListExpr)
+		if !ok {
+			if i == len(args)-1 {
+				// Last element can be non-list (improper list), but we don't support dotted pairs
+				return nil, fmt.Errorf("append: expected list, got %s", arg.String())
+			}
+
+			return nil, fmt.Errorf("append: expected list, got %s", arg.String())
+		}
+
+		result = append(result, list.elements...)
+	}
+
+	return &ListExpr{elements: result}, nil
 }
 
 func builtinDisplay(args []Expr) (Expr, error) {
@@ -665,4 +757,59 @@ func builtinVectorFill(args []Expr) (Expr, error) {
 	}
 
 	return Void(), nil
+}
+
+func builtinSymbolToString(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("symbol->string: expected 1 argument, got %d", len(args))
+	}
+
+	sym, ok := args[0].(*SymbolExpr)
+	if !ok {
+		return nil, fmt.Errorf("symbol->string: expected symbol, got %s", args[0].String())
+	}
+
+	return &StringExpr{val: sym.val}, nil
+}
+
+func builtinStringToSymbol(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("string->symbol: expected 1 argument, got %d", len(args))
+	}
+
+	s, ok := args[0].(*StringExpr)
+	if !ok {
+		return nil, fmt.Errorf("string->symbol: expected string, got %s", args[0].String())
+	}
+
+	return &SymbolExpr{val: s.val}, nil
+}
+
+func builtinGensym(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("gensym: expected 1 argument, got %d", len(args))
+	}
+
+	s, ok := args[0].(*StringExpr)
+	if !ok {
+		return nil, fmt.Errorf("gensym: expected string, got %s", args[0].String())
+	}
+
+	return &SymbolExpr{val: gensym(s.val)}, nil
+}
+
+func builtinDatumToSyntax(args []Expr) (Expr, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("datum->syntax: expected 2 arguments, got %d", len(args))
+	}
+
+	return args[1], nil
+}
+
+func builtinSyntaxToDatum(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("syntax->datum: expected 1 argument, got %d", len(args))
+	}
+
+	return args[0], nil
 }

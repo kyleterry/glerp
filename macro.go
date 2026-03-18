@@ -385,13 +385,15 @@ func evalDefineSyntax(args []Expr, env *Environment) (Expr, error) {
 		return nil, err
 	}
 
-	rules, ok := transformer.(*SyntaxRulesExpr)
-	if !ok {
-		return nil, fmt.Errorf("define-syntax: transformer must be a syntax-rules expression, got %s", transformer.String())
+	switch t := transformer.(type) {
+	case *SyntaxRulesExpr:
+		t.name = nameSym.val
+		env.Bind(nameSym.val, t)
+	case *LambdaExpr, *BuiltinExpr:
+		env.Bind(nameSym.val, &TransformerExpr{proc: transformer})
+	default:
+		return nil, fmt.Errorf("define-syntax: expected syntax-rules or procedure, got %s", transformer.String())
 	}
-
-	rules.name = nameSym.val
-	env.Bind(nameSym.val, rules)
 
 	return Void(), nil
 }

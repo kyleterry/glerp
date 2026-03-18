@@ -99,3 +99,189 @@ func TestMacro(t *testing.T) {
 		})
 	}
 }
+
+func TestSyntaxCase(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		want string
+	}{
+		// basic syntax-case with lambda transformer
+		{"simple transformer", `
+			(define-syntax my-inc
+			  (lambda (stx)
+			    (syntax-case stx ()
+			      [(_ x) (syntax (+ x 1))])))
+			(my-inc 5)
+		`, "6"},
+
+		// ellipsis in syntax-case
+		{"ellipsis", `
+			(define-syntax my-list
+			  (lambda (stx)
+			    (syntax-case stx ()
+			      [(_ x ...) (syntax (list x ...))])))
+			(my-list 10 20 30)
+		`, "(10 20 30)"},
+
+		// nested pattern
+		{"nested pattern", `
+			(define-syntax my-let
+			  (lambda (stx)
+			    (syntax-case stx ()
+			      [(_ ((var val) ...) body ...)
+			       (syntax ((lambda (var ...) body ...) val ...))])))
+			(my-let ((x 3) (y 4)) (+ x y))
+		`, "7"},
+
+		// fender clause
+		{"fender match", `
+			(define-syntax classify
+			  (lambda (stx)
+			    (syntax-case stx ()
+			      [(_ x) (number? x) (syntax "number")]
+			      [(_ x) (syntax "other")])))
+			(classify 42)
+		`, `"number"`},
+		{"fender fallthrough", `
+			(define-syntax classify
+			  (lambda (stx)
+			    (syntax-case stx ()
+			      [(_ x) (number? x) (syntax "number")]
+			      [(_ x) (syntax "other")])))
+			(classify "hello")
+		`, `"other"`},
+
+		// body computation with pattern variables
+		{"pattern var in body", `
+			(define-syntax make-adder
+			  (lambda (stx)
+			    (syntax-case stx ()
+			      [(_ name n)
+			       (let ([name-str (symbol->string name)])
+			         (with-syntax ([full-name (string->symbol (string-append "add-" name-str))])
+			           (syntax (define (full-name x) (+ x n)))))])))
+			(make-adder three 3)
+			(add-three 10)
+		`, "13"},
+
+		// with-syntax binding
+		{"with-syntax simple", `
+			(define-syntax swap-args
+			  (lambda (stx)
+			    (syntax-case stx ()
+			      [(_ f a b)
+			       (with-syntax ([result (syntax (f b a))])
+			         (syntax result))])))
+			(swap-args - 1 10)
+		`, "9"},
+
+		// with-syntax ellipsis
+		{"with-syntax ellipsis", `
+			(define-syntax double-list
+			  (lambda (stx)
+			    (syntax-case stx ()
+			      [(_ x ...)
+			       (with-syntax ([(doubled ...) (map (lambda (v) (* v 2)) (syntax (x ...)))])
+			         (syntax (list doubled ...)))])))
+			(double-list 1 2 3)
+		`, "(2 4 6)"},
+
+		// datum->syntax for identifier generation
+		{"datum->syntax", `
+			(define-syntax def-val
+			  (lambda (stx)
+			    (syntax-case stx ()
+			      [(_ name val)
+			       (with-syntax ([getter (datum->syntax name
+			                       (string->symbol
+			                         (string-append "get-" (symbol->string name))))])
+			         (syntax (begin
+			           (define getter (lambda () val)))))])))
+			(def-val answer 42)
+			(get-answer)
+		`, "42"},
+
+		// symbol->string and string->symbol
+		{"symbol->string", `(symbol->string 'hello)`, `"hello"`},
+		{"string->symbol", `(symbol->string (string->symbol "world"))`, `"world"`},
+
+		// syntax->datum identity
+		{"syntax->datum", `(syntax->datum 42)`, "42"},
+
+		// syntax outside syntax-case acts like quote
+		{"syntax as quote", `(syntax (+ 1 2))`, "(+ 1 2)"},
+
+		// #' shorthand for syntax
+		{"#' shorthand", `
+			(define-syntax my-inc
+			  (lambda (stx)
+			    (syntax-case stx ()
+			      [(_ x) #'(+ x 1)])))
+			(my-inc 5)
+		`, "6"},
+
+		// quasisyntax with unsyntax
+		{"quasisyntax basic", `
+			(define-syntax add-n
+			  (lambda (stx)
+			    (syntax-case stx ()
+			      [(_ n body)
+			       (let ([doubled (* 2 n)])
+			         (quasisyntax (+ body (unsyntax doubled))))])))
+			(add-n 3 10)
+		`, "16"},
+
+		// quasisyntax with unsyntax-splicing
+		{"quasisyntax splicing", `
+			(define-syntax wrap-list
+			  (lambda (stx)
+			    (syntax-case stx ()
+			      [(_ x ...)
+			       (let ([items (syntax (x ...))])
+			         (quasisyntax (list (unsyntax-splicing items))))])))
+			(wrap-list 1 2 3)
+		`, "(1 2 3)"},
+
+		// quasisyntax with pattern vars and computed value
+		{"quasisyntax mixed", `
+			(define-syntax make-adder2
+			  (lambda (stx)
+			    (syntax-case stx ()
+			      [(_ name n)
+			       (let ([fn-name (string->symbol
+			               (string-append "add-" (symbol->string name)))])
+			         (quasisyntax (define ((unsyntax fn-name) x) (+ x n))))])))
+			(make-adder2 five 5)
+			(add-five 10)
+		`, "15"},
+
+		// struct from prelude
+		{"struct basic", `
+			(struct point x y)
+			(define p (make-point 3 7))
+			(list (point? p) (point-x p) (point-y p))
+		`, "(#t 3 7)"},
+		{"struct setter", `
+			(struct point x y)
+			(define p (make-point 3 7))
+			(set-point-x! p 10)
+			(point-x p)
+		`, "10"},
+		{"struct predicate false", `
+			(struct point x y)
+			(point? 42)
+		`, "#f"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			env := glerp.NewEnvironment(glerp.DefaultConfig())
+			results, err := glerp.Eval(tt.src, env)
+			is.NoErr(err)
+			is.True(len(results) > 0)
+			is.Equal(results[len(results)-1].String(), tt.want)
+		})
+	}
+}

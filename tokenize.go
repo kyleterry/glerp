@@ -141,6 +141,18 @@ func (t *Tokenizer) tokenizeLine(line string) []Token {
 				t.mode = modeQuoted
 			}
 		case r == ',':
+			// #, and #,@ are syntax-case shorthands.
+			if t.current == "#" {
+				if i+1 < len(line) && line[i+1] == '@' {
+					toks = append(toks, Token{Kind: HashCommaAt, Value: "#,@"})
+					skip = true
+				} else {
+					toks = append(toks, Token{Kind: HashComma, Value: "#,"})
+				}
+				t.current = ""
+				continue
+			}
+
 			if t.current != "" {
 				toks = append(toks, Token{
 					Kind:  lookupToken(t.current),
@@ -155,11 +167,22 @@ func (t *Tokenizer) tokenizeLine(line string) []Token {
 				toks = append(toks, Token{Kind: Comma, Value: ","})
 			}
 		case isDelimiter(string(r)):
-			// #( is a single vector-literal delimiter.
-			if t.current == "#" && r == '(' {
-				toks = append(toks, Token{Kind: HashLParen, Value: "#("})
-				t.current = ""
-				continue
+			// #-prefixed delimiters: #( vector, #' syntax, #` quasisyntax
+			if t.current == "#" {
+				switch r {
+				case '(':
+					toks = append(toks, Token{Kind: HashLParen, Value: "#("})
+					t.current = ""
+					continue
+				case '\'':
+					toks = append(toks, Token{Kind: HashQuote, Value: "#'"})
+					t.current = ""
+					continue
+				case '`':
+					toks = append(toks, Token{Kind: HashBacktick, Value: "#`"})
+					t.current = ""
+					continue
+				}
 			}
 
 			if t.current != "" {

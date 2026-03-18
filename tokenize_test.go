@@ -358,6 +358,50 @@ func TestTokenization(t *testing.T) {
 				{Kind: EOF, Value: ""},
 			},
 		},
+		{
+			description: "#' syntax shorthand",
+			content:     `#'(+ 1 2)`,
+			expectedTokens: []Token{
+				{Kind: HashQuote, Value: "#'"},
+				{Kind: LParen, Value: "("},
+				{Kind: Add, Value: "+"},
+				{Kind: Number, Value: "1"},
+				{Kind: Number, Value: "2"},
+				{Kind: RParen, Value: ")"},
+				{Kind: EOF, Value: ""},
+			},
+		},
+		{
+			description: "#` quasisyntax shorthand",
+			content:     "#`(+ x 1)",
+			expectedTokens: []Token{
+				{Kind: HashBacktick, Value: "#`"},
+				{Kind: LParen, Value: "("},
+				{Kind: Add, Value: "+"},
+				{Kind: Symbol, Value: "x"},
+				{Kind: Number, Value: "1"},
+				{Kind: RParen, Value: ")"},
+				{Kind: EOF, Value: ""},
+			},
+		},
+		{
+			description: "#, unsyntax shorthand",
+			content:     `#,x`,
+			expectedTokens: []Token{
+				{Kind: HashComma, Value: "#,"},
+				{Kind: Symbol, Value: "x"},
+				{Kind: EOF, Value: ""},
+			},
+		},
+		{
+			description: "#,@ unsyntax-splicing shorthand",
+			content:     `#,@xs`,
+			expectedTokens: []Token{
+				{Kind: HashCommaAt, Value: "#,@"},
+				{Kind: Symbol, Value: "xs"},
+				{Kind: EOF, Value: ""},
+			},
+		},
 	}
 
 	for _, test := range tests {

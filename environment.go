@@ -82,6 +82,16 @@ func StandardForms() map[string]FormFn {
 		"export":        evalExport,
 		"define-syntax": evalDefineSyntax,
 		"syntax-rules":  evalSyntaxRules,
+		"syntax-case":   evalSyntaxCase,
+		"syntax":        evalSyntax,
+		"with-syntax":   evalWithSyntax,
+		"quasisyntax":   evalQuasisyntax,
+		"unsyntax": func(_ []Expr, _ *Environment) (Expr, error) {
+			return nil, fmt.Errorf("unsyntax: not inside quasisyntax")
+		},
+		"unsyntax-splicing": func(_ []Expr, _ *Environment) (Expr, error) {
+			return nil, fmt.Errorf("unsyntax-splicing: not inside quasisyntax")
+		},
 	}
 }
 

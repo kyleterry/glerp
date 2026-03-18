@@ -79,6 +79,46 @@ func (p *Parser) parseExpr() (Expr, error) {
 		sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "unquote-splicing"}, val: "unquote-splicing"}
 		return &ListExpr{tok: tok, elements: []Expr{sym, inner}}, nil
 
+	case HashQuote:
+		// Desugar #'expr → (syntax expr)
+		p.lexer.NextToken()
+		inner, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "syntax"}, val: "syntax"}
+		return &ListExpr{tok: tok, elements: []Expr{sym, inner}}, nil
+
+	case HashBacktick:
+		// Desugar #`expr → (quasisyntax expr)
+		p.lexer.NextToken()
+		inner, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "quasisyntax"}, val: "quasisyntax"}
+		return &ListExpr{tok: tok, elements: []Expr{sym, inner}}, nil
+
+	case HashComma:
+		// Desugar #,expr → (unsyntax expr)
+		p.lexer.NextToken()
+		inner, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "unsyntax"}, val: "unsyntax"}
+		return &ListExpr{tok: tok, elements: []Expr{sym, inner}}, nil
+
+	case HashCommaAt:
+		// Desugar #,@expr → (unsyntax-splicing expr)
+		p.lexer.NextToken()
+		inner, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "unsyntax-splicing"}, val: "unsyntax-splicing"}
+		return &ListExpr{tok: tok, elements: []Expr{sym, inner}}, nil
+
 	case Number:
 		p.lexer.NextToken()
 		v, err := strconv.ParseFloat(tok.Value, 64)

@@ -135,6 +135,16 @@ func (e *ListExpr) Eval(env *Environment) (Expr, error) {
 		return f.fn(tail, env)
 	}
 
+	// Procedure-based macro transformer: pass the whole unevaluated form
+	// to the transformer procedure, then evaluate the result.
+	if transformer, ok := proc.(*TransformerExpr); ok {
+		result, err := apply(transformer.proc, []Expr{e})
+		if err != nil {
+			return nil, err
+		}
+		return result.Eval(env)
+	}
+
 	// Macro application: expand the transformer against the unevaluated call
 	// form, then evaluate the result in the same environment.
 	if transformer, ok := proc.(*SyntaxRulesExpr); ok {
