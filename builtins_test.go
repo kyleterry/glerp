@@ -67,6 +67,37 @@ func TestBuiltins(t *testing.T) {
 		{"get-env-var found", `(get-environment-variable "GLERP_TEST_VAR")`, `"test-value-42"`},
 		{"get-env-var not found", `(get-environment-variable "GLERP_NONEXISTENT_VAR")`, "#f"},
 
+		// vector operations
+		{"vector literal", "#(1 2 3)", "#(1 2 3)"},
+		{"vector literal empty", "#()", "#()"},
+		{"vector constructor", "(vector 1 2 3)", "#(1 2 3)"},
+		{"vector constructor empty", "(vector)", "#()"},
+		{"make-vector", "(make-vector 3)", "#(0 0 0)"},
+		{"make-vector with fill", `(make-vector 3 "x")`, `#("x" "x" "x")`},
+		{"vector-ref first", "(vector-ref #(10 20 30) 0)", "10"},
+		{"vector-ref last", "(vector-ref #(10 20 30) 2)", "30"},
+		{"vector-set!", "(define v (vector 1 2 3)) (vector-set! v 1 99) (vector-ref v 1)", "99"},
+		{"vector-length", "(vector-length #(a b c d))", "4"},
+		{"vector-length empty", "(vector-length #())", "0"},
+		{"vector? true", "(vector? #(1 2))", "#t"},
+		{"vector? false", "(vector? '(1 2))", "#f"},
+		{"vector? number", "(vector? 42)", "#f"},
+		{"vector->list", "(vector->list #(1 2 3))", "(1 2 3)"},
+		{"vector->list empty", "(vector->list #())", "()"},
+		{"list->vector", "(list->vector '(1 2 3))", "#(1 2 3)"},
+		{"list->vector empty", "(list->vector '())", "#()"},
+		{"vector-fill!", "(define v (vector 1 2 3)) (vector-fill! v 0) v", "#(0 0 0)"},
+		{"equal? same vector", "(equal? #(1 2 3) #(1 2 3))", "#t"},
+		{"equal? diff vector", "(equal? #(1 2 3) #(1 2 4))", "#f"},
+		{"equal? vector vs list", "(equal? #(1 2 3) '(1 2 3))", "#f"},
+		{"vector roundtrip", "(list->vector (vector->list #(4 5 6)))", "#(4 5 6)"},
+		{"vector mutation independent", `
+			(define v (vector 1 2 3))
+			(define w (list->vector (vector->list v)))
+			(vector-set! w 0 99)
+			(vector-ref v 0)
+		`, "1"},
+
 		// get-environment-variables
 		{"get-env-vars is list", `(list? (get-environment-variables))`, "#t"},
 		{"get-env-vars contains test var", `

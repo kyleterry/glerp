@@ -43,6 +43,7 @@ const (
 	Backtick
 	Comma
 	CommaAt
+	HashLParen
 	delimiter_end
 
 	keyword_beg
@@ -89,6 +90,7 @@ var tokenNames = [...]string{
 	Backtick:     "`",
 	Comma:        ",",
 	CommaAt:      ",@",
+	HashLParen:   "#(",
 	Car:          "car",
 	Cdr:          "cdr",
 	Cons:         "cons",

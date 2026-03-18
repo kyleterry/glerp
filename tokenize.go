@@ -155,6 +155,13 @@ func (t *Tokenizer) tokenizeLine(line string) []Token {
 				toks = append(toks, Token{Kind: Comma, Value: ","})
 			}
 		case isDelimiter(string(r)):
+			// #( is a single vector-literal delimiter.
+			if t.current == "#" && r == '(' {
+				toks = append(toks, Token{Kind: HashLParen, Value: "#("})
+				t.current = ""
+				continue
+			}
+
 			if t.current != "" {
 				toks = append(toks, Token{
 					Kind:  lookupToken(t.current),

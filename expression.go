@@ -157,6 +157,35 @@ func (e *ListExpr) Eval(env *Environment) (Expr, error) {
 	return apply(proc, args)
 }
 
+// VectorExpr is a fixed-length, mutable array of Scheme values.
+// Vectors are self-evaluating (like numbers and strings). They are written
+// as #(elem ...) and support O(1) access by index via vector-ref.
+type VectorExpr struct {
+	tok      Token
+	elements []Expr
+}
+
+func (e *VectorExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
+
+// Token returns the source token for this expression.
+func (e *VectorExpr) Token() Token { return e.tok }
+
+// Elements returns the expressions contained in this vector.
+func (e *VectorExpr) Elements() []Expr { return e.elements }
+
+// Length returns the number of elements in this vector.
+func (e *VectorExpr) Length() int { return len(e.elements) }
+
+func (e *VectorExpr) String() string {
+	parts := make([]string, len(e.elements))
+
+	for i, el := range e.elements {
+		parts[i] = el.String()
+	}
+
+	return "#(" + strings.Join(parts, " ") + ")"
+}
+
 // LambdaExpr is a user-defined procedure (closure).
 type LambdaExpr struct {
 	tok    Token
@@ -521,6 +550,21 @@ func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
 		return &ListExpr{tok: expr.Token(), elements: []Expr{sym, expanded}}, nil
 	}
 
+	// Vectors: expand elements the same way as lists, but produce a VectorExpr.
+	if vec, ok := expr.(*VectorExpr); ok {
+		var result []Expr
+
+		for _, el := range vec.elements {
+			expanded, err := expandQQ(el, depth, env)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, expanded)
+		}
+
+		return &VectorExpr{tok: vec.tok, elements: result}, nil
+	}
+
 	list, ok := expr.(*ListExpr)
 	if !ok {
 		return expr, nil
@@ -658,6 +702,7 @@ func evalDefineValues(args []Expr, env *Environment) (Expr, error) {
 
 // eqv reports whether two expressions are equivalent in the sense of Scheme's
 // eqv?: identical booleans, equal numbers, equal strings, or identical symbols.
+// For vectors, eqv? tests identity (pointer equality), not structural equality.
 func eqv(a, b Expr) bool {
 	switch x := a.(type) {
 	case *NumberExpr:
@@ -672,6 +717,8 @@ func eqv(a, b Expr) bool {
 	case *SymbolExpr:
 		y, ok := b.(*SymbolExpr)
 		return ok && x.val == y.val
+	case *VectorExpr:
+		return a == b
 	}
 	return false
 }

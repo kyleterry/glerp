@@ -36,7 +36,7 @@ type macroRule struct {
 }
 
 func (e *SyntaxRulesExpr) Eval(_ *Environment) (Expr, error) { return e, nil }
-func (e *SyntaxRulesExpr) Token() Token                { return Token{} }
+func (e *SyntaxRulesExpr) Token() Token                      { return Token{} }
 func (e *SyntaxRulesExpr) String() string {
 	return fmt.Sprintf("#<syntax-transformer %s>", e.name)
 }

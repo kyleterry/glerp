@@ -33,6 +33,9 @@ func (p *Parser) parseExpr() (Expr, error) {
 	case LParen, LBrack:
 		return p.parseList()
 
+	case HashLParen:
+		return p.parseVector()
+
 	case Quote:
 		// Desugar 'expr → (quote expr)
 		p.lexer.NextToken()
@@ -145,6 +148,32 @@ func (p *Parser) parseList() (Expr, error) {
 	}
 
 	return &ListExpr{tok: open, elements: elements}, nil
+}
+
+func (p *Parser) parseVector() (Expr, error) {
+	open := p.lexer.NextToken() // consume '#('
+
+	var elements []Expr
+
+	for {
+		peek := p.lexer.PeekToken()
+		if peek.Kind == RParen {
+			p.lexer.NextToken()
+			break
+		}
+		if peek.Kind == EOF {
+			return nil, fmt.Errorf("unexpected EOF: unclosed '#('")
+		}
+
+		expr, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+
+		elements = append(elements, expr)
+	}
+
+	return &VectorExpr{tok: open, elements: elements}, nil
 }
 
 // NewParser creates a parser that reads from the given lexer.

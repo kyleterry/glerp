@@ -20,40 +20,49 @@ type BuiltinFn func([]Expr) (Expr, error)
 // as Libraries on the config and accessed with (import :go/time) from Scheme.
 func StandardBuiltins() map[string]BuiltinFn {
 	m := map[string]BuiltinFn{
-		"+":             builtinAdd,
-		"-":             builtinSub,
-		"*":             builtinMul,
-		"/":             builtinDiv,
-		"<":             builtinLess,
-		">":             builtinGreater,
-		"<=":            builtinLessEq,
-		">=":            builtinGreaterEq,
-		"=":             builtinNumEq,
-		"not":           builtinNot,
-		"car":           builtinCar,
-		"cdr":           builtinCdr,
-		"cons":          builtinCons,
-		"null?":         typePred("null?", func(e Expr) bool { l, ok := e.(*ListExpr); return ok && len(l.elements) == 0 }),
-		"pair?":         typePred("pair?", func(e Expr) bool { l, ok := e.(*ListExpr); return ok && len(l.elements) > 0 }),
-		"list?":         typePred("list?", func(e Expr) bool { _, ok := e.(*ListExpr); return ok }),
-		"number?":       typePred("number?", func(e Expr) bool { _, ok := e.(*NumberExpr); return ok }),
-		"string?":       typePred("string?", func(e Expr) bool { _, ok := e.(*StringExpr); return ok }),
-		"boolean?":      typePred("boolean?", func(e Expr) bool { _, ok := e.(*BoolExpr); return ok }),
-		"symbol?":       typePred("symbol?", func(e Expr) bool { _, ok := e.(*SymbolExpr); return ok }),
-		"procedure?":    typePred("procedure?", func(e Expr) bool { _, okL := e.(*LambdaExpr); _, okB := e.(*BuiltinExpr); return okL || okB }),
-		"eq?":           builtinEq,
-		"equal?":        builtinEqual,
-		"modulo":        builtinModulo,
-		"remainder":     builtinRemainder,
-		"list":          builtinList,
-		"display":       builtinDisplay,
-		"display-ln":    builtinDisplayLn,
-		"newline":       builtinNewline,
-		"values":        builtinValues,
-		"string-append":              builtinStringAppend,
-		"->string":                   builtinToString,
-		"get-environment-variable":   builtinGetEnvVar,
-		"get-environment-variables":  builtinGetEnvVars,
+		"+":                         builtinAdd,
+		"-":                         builtinSub,
+		"*":                         builtinMul,
+		"/":                         builtinDiv,
+		"<":                         builtinLess,
+		">":                         builtinGreater,
+		"<=":                        builtinLessEq,
+		">=":                        builtinGreaterEq,
+		"=":                         builtinNumEq,
+		"not":                       builtinNot,
+		"car":                       builtinCar,
+		"cdr":                       builtinCdr,
+		"cons":                      builtinCons,
+		"null?":                     typePred("null?", func(e Expr) bool { l, ok := e.(*ListExpr); return ok && len(l.elements) == 0 }),
+		"pair?":                     typePred("pair?", func(e Expr) bool { l, ok := e.(*ListExpr); return ok && len(l.elements) > 0 }),
+		"list?":                     typePred("list?", func(e Expr) bool { _, ok := e.(*ListExpr); return ok }),
+		"number?":                   typePred("number?", func(e Expr) bool { _, ok := e.(*NumberExpr); return ok }),
+		"string?":                   typePred("string?", func(e Expr) bool { _, ok := e.(*StringExpr); return ok }),
+		"boolean?":                  typePred("boolean?", func(e Expr) bool { _, ok := e.(*BoolExpr); return ok }),
+		"symbol?":                   typePred("symbol?", func(e Expr) bool { _, ok := e.(*SymbolExpr); return ok }),
+		"procedure?":                typePred("procedure?", func(e Expr) bool { _, okL := e.(*LambdaExpr); _, okB := e.(*BuiltinExpr); return okL || okB }),
+		"eq?":                       builtinEq,
+		"equal?":                    builtinEqual,
+		"modulo":                    builtinModulo,
+		"remainder":                 builtinRemainder,
+		"list":                      builtinList,
+		"display":                   builtinDisplay,
+		"display-ln":                builtinDisplayLn,
+		"newline":                   builtinNewline,
+		"values":                    builtinValues,
+		"string-append":             builtinStringAppend,
+		"->string":                  builtinToString,
+		"get-environment-variable":  builtinGetEnvVar,
+		"get-environment-variables": builtinGetEnvVars,
+		"vector":                    builtinVector,
+		"make-vector":               builtinMakeVector,
+		"vector-ref":                builtinVectorRef,
+		"vector-set!":               builtinVectorSet,
+		"vector-length":             builtinVectorLength,
+		"vector?":                   typePred("vector?", func(e Expr) bool { _, ok := e.(*VectorExpr); return ok }),
+		"vector->list":              builtinVectorToList,
+		"list->vector":              builtinListToVector,
+		"vector-fill!":              builtinVectorFill,
 	}
 
 	maps.Copy(m, cxrBuiltins())
@@ -398,6 +407,22 @@ func deepEqual(a, b Expr) bool {
 		return true
 	}
 
+	va, okVA := a.(*VectorExpr)
+	vb, okVB := b.(*VectorExpr)
+
+	if okVA && okVB {
+		if len(va.elements) != len(vb.elements) {
+			return false
+		}
+		for i := range va.elements {
+			if !deepEqual(va.elements[i], vb.elements[i]) {
+				return false
+			}
+		}
+
+		return true
+	}
+
 	return eqv(a, b)
 }
 
@@ -495,4 +520,149 @@ func builtinGetEnvVars(args []Expr) (Expr, error) {
 	}
 
 	return &ListExpr{elements: entries}, nil
+}
+
+func builtinVector(args []Expr) (Expr, error) {
+	elems := make([]Expr, len(args))
+	copy(elems, args)
+
+	return &VectorExpr{elements: elems}, nil
+}
+
+func builtinMakeVector(args []Expr) (Expr, error) {
+	if len(args) < 1 || len(args) > 2 {
+		return nil, fmt.Errorf("make-vector: expected 1 or 2 arguments, got %d", len(args))
+	}
+
+	k, err := toNum("make-vector", args[0])
+	if err != nil {
+		return nil, err
+	}
+
+	n := int(k)
+	if n < 0 {
+		return nil, fmt.Errorf("make-vector: length must be non-negative, got %d", n)
+	}
+
+	var fill Expr = num(0)
+	if len(args) == 2 {
+		fill = args[1]
+	}
+
+	elems := make([]Expr, n)
+	for i := range elems {
+		elems[i] = fill
+	}
+
+	return &VectorExpr{elements: elems}, nil
+}
+
+func builtinVectorRef(args []Expr) (Expr, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("vector-ref: expected 2 arguments, got %d", len(args))
+	}
+
+	vec, ok := args[0].(*VectorExpr)
+	if !ok {
+		return nil, fmt.Errorf("vector-ref: expected vector, got %s", args[0].String())
+	}
+
+	k, err := toNum("vector-ref", args[1])
+	if err != nil {
+		return nil, err
+	}
+
+	idx := int(k)
+	if idx < 0 || idx >= len(vec.elements) {
+		return nil, fmt.Errorf("vector-ref: index %d out of range for vector of length %d", idx, len(vec.elements))
+	}
+
+	return vec.elements[idx], nil
+}
+
+func builtinVectorSet(args []Expr) (Expr, error) {
+	if len(args) != 3 {
+		return nil, fmt.Errorf("vector-set!: expected 3 arguments, got %d", len(args))
+	}
+
+	vec, ok := args[0].(*VectorExpr)
+	if !ok {
+		return nil, fmt.Errorf("vector-set!: expected vector, got %s", args[0].String())
+	}
+
+	k, err := toNum("vector-set!", args[1])
+	if err != nil {
+		return nil, err
+	}
+
+	idx := int(k)
+	if idx < 0 || idx >= len(vec.elements) {
+		return nil, fmt.Errorf("vector-set!: index %d out of range for vector of length %d", idx, len(vec.elements))
+	}
+
+	vec.elements[idx] = args[2]
+
+	return Void(), nil
+}
+
+func builtinVectorLength(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("vector-length: expected 1 argument, got %d", len(args))
+	}
+
+	vec, ok := args[0].(*VectorExpr)
+	if !ok {
+		return nil, fmt.Errorf("vector-length: expected vector, got %s", args[0].String())
+	}
+
+	return num(float64(len(vec.elements))), nil
+}
+
+func builtinVectorToList(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("vector->list: expected 1 argument, got %d", len(args))
+	}
+
+	vec, ok := args[0].(*VectorExpr)
+	if !ok {
+		return nil, fmt.Errorf("vector->list: expected vector, got %s", args[0].String())
+	}
+
+	elems := make([]Expr, len(vec.elements))
+	copy(elems, vec.elements)
+
+	return &ListExpr{elements: elems}, nil
+}
+
+func builtinListToVector(args []Expr) (Expr, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("list->vector: expected 1 argument, got %d", len(args))
+	}
+
+	lst, ok := args[0].(*ListExpr)
+	if !ok {
+		return nil, fmt.Errorf("list->vector: expected list, got %s", args[0].String())
+	}
+
+	elems := make([]Expr, len(lst.elements))
+	copy(elems, lst.elements)
+
+	return &VectorExpr{elements: elems}, nil
+}
+
+func builtinVectorFill(args []Expr) (Expr, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("vector-fill!: expected 2 arguments, got %d", len(args))
+	}
+
+	vec, ok := args[0].(*VectorExpr)
+	if !ok {
+		return nil, fmt.Errorf("vector-fill!: expected vector, got %s", args[0].String())
+	}
+
+	for i := range vec.elements {
+		vec.elements[i] = args[1]
+	}
+
+	return Void(), nil
 }
