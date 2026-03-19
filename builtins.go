@@ -47,7 +47,6 @@ func StandardBuiltins() map[string]BuiltinFn {
 		"remainder":                 builtinRemainder,
 		"list":                      builtinList,
 		"display":                   builtinDisplay,
-		"display-ln":                builtinDisplayLn,
 		"newline":                   builtinNewline,
 		"values":                    builtinValues,
 		"string-append":             builtinStringAppend,
@@ -64,7 +63,6 @@ func StandardBuiltins() map[string]BuiltinFn {
 		"length":                    builtinLength,
 		"map":                       builtinMap,
 		"apply":                     builtinApply,
-		"append":                    builtinAppend,
 		"list->vector":              builtinListToVector,
 		"vector-fill!":              builtinVectorFill,
 		"symbol->string":            builtinSymbolToString,
@@ -125,6 +123,15 @@ func cxrBuiltins() map[string]BuiltinFn {
 	return m
 }
 
+// checkArity returns an error if args does not have exactly n elements.
+func checkArity(name string, args []Expr, n int) error {
+	if len(args) != n {
+		return fmt.Errorf("%s: expected %d argument(s), got %d", name, n, len(args))
+	}
+
+	return nil
+}
+
 func toNum(name string, e Expr) (float64, error) {
 	n, ok := e.(*NumberExpr)
 	if !ok {
@@ -132,6 +139,62 @@ func toNum(name string, e Expr) (float64, error) {
 	}
 
 	return n.val, nil
+}
+
+func toList(name string, e Expr) (*ListExpr, error) {
+	l, ok := e.(*ListExpr)
+	if !ok {
+		return nil, fmt.Errorf("%s: expected list, got %s", name, e.String())
+	}
+
+	return l, nil
+}
+
+func toVec(name string, e Expr) (*VectorExpr, error) {
+	v, ok := e.(*VectorExpr)
+	if !ok {
+		return nil, fmt.Errorf("%s: expected vector, got %s", name, e.String())
+	}
+
+	return v, nil
+}
+
+func toStr(name string, e Expr) (string, error) {
+	s, ok := e.(*StringExpr)
+	if !ok {
+		return "", fmt.Errorf("%s: expected string, got %s", name, e.String())
+	}
+
+	return s.val, nil
+}
+
+func toSym(name string, e Expr) (string, error) {
+	s, ok := e.(*SymbolExpr)
+	if !ok {
+		return "", fmt.Errorf("%s: expected symbol, got %s", name, e.String())
+	}
+
+	return s.val, nil
+}
+
+// vecIndex extracts a VectorExpr from args[0] and a valid index from args[1].
+func vecIndex(name string, args []Expr) (*VectorExpr, int, error) {
+	vec, err := toVec(name, args[0])
+	if err != nil {
+		return nil, 0, err
+	}
+
+	k, err := toNum(name, args[1])
+	if err != nil {
+		return nil, 0, err
+	}
+
+	idx := int(k)
+	if idx < 0 || idx >= len(vec.elements) {
+		return nil, 0, fmt.Errorf("%s: index %d out of range for vector of length %d", name, idx, len(vec.elements))
+	}
+
+	return vec, idx, nil
 }
 
 func num(v float64) *NumberExpr { return &NumberExpr{val: v} }
@@ -250,20 +313,16 @@ var (
 )
 
 func builtinNot(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("not: expected 1 argument, got %d", len(args))
+	if err := checkArity("not", args, 1); err != nil {
+		return nil, err
 	}
 
-	if b, ok := args[0].(*BoolExpr); ok && !b.val {
-		return boolean(true), nil
-	}
-
-	return boolean(false), nil
+	return boolean(isFalse(args[0])), nil
 }
 
 func builtinCar(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("car: expected 1 argument, got %d", len(args))
+	if err := checkArity("car", args, 1); err != nil {
+		return nil, err
 	}
 
 	lst, ok := args[0].(*ListExpr)
@@ -275,8 +334,8 @@ func builtinCar(args []Expr) (Expr, error) {
 }
 
 func builtinCdr(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("cdr: expected 1 argument, got %d", len(args))
+	if err := checkArity("cdr", args, 1); err != nil {
+		return nil, err
 	}
 
 	lst, ok := args[0].(*ListExpr)
@@ -288,13 +347,13 @@ func builtinCdr(args []Expr) (Expr, error) {
 }
 
 func builtinCons(args []Expr) (Expr, error) {
-	if len(args) != 2 {
-		return nil, fmt.Errorf("cons: expected 2 arguments, got %d", len(args))
+	if err := checkArity("cons", args, 2); err != nil {
+		return nil, err
 	}
 
-	lst, ok := args[1].(*ListExpr)
-	if !ok {
-		return nil, fmt.Errorf("cons: second argument must be a list, got %s", args[1].String())
+	lst, err := toList("cons", args[1])
+	if err != nil {
+		return nil, err
 	}
 
 	elems := make([]Expr, 1+len(lst.elements))
@@ -309,16 +368,16 @@ func builtinList(args []Expr) (Expr, error) {
 }
 
 func builtinLength(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("length: expected 1 argument, got %d", len(args))
+	if err := checkArity("length", args, 1); err != nil {
+		return nil, err
 	}
 
-	list, ok := args[0].(*ListExpr)
-	if !ok {
-		return nil, fmt.Errorf("length: expected list, got %s", args[0].String())
+	list, err := toList("length", args[0])
+	if err != nil {
+		return nil, err
 	}
 
-	return &NumberExpr{val: float64(len(list.elements))}, nil
+	return num(float64(len(list.elements))), nil
 }
 
 func builtinMap(args []Expr) (Expr, error) {
@@ -327,9 +386,9 @@ func builtinMap(args []Expr) (Expr, error) {
 	}
 
 	proc := args[0]
-	list, ok := args[1].(*ListExpr)
-	if !ok {
-		return nil, fmt.Errorf("map: expected list as second argument, got %s", args[1].String())
+	list, err := toList("map", args[1])
+	if err != nil {
+		return nil, err
 	}
 
 	results := make([]Expr, len(list.elements))
@@ -352,11 +411,10 @@ func builtinApply(args []Expr) (Expr, error) {
 	}
 
 	proc := args[0]
-	last := args[len(args)-1]
 
-	list, ok := last.(*ListExpr)
-	if !ok {
-		return nil, fmt.Errorf("apply: last argument must be a list, got %s", last.String())
+	list, err := toList("apply", args[len(args)-1])
+	if err != nil {
+		return nil, err
 	}
 
 	// Collect leading args + spread the final list
@@ -367,59 +425,25 @@ func builtinApply(args []Expr) (Expr, error) {
 	return apply(proc, allArgs)
 }
 
-func builtinAppend(args []Expr) (Expr, error) {
-	if len(args) == 0 {
-		return &ListExpr{elements: nil}, nil
+
+func displayValue(e Expr) string {
+	if s, ok := e.(*StringExpr); ok {
+		return s.val
 	}
 
-	var result []Expr
-
-	for i, arg := range args {
-		list, ok := arg.(*ListExpr)
-		if !ok {
-			if i == len(args)-1 {
-				// Last element can be non-list (improper list), but we don't support dotted pairs
-				return nil, fmt.Errorf("append: expected list, got %s", arg.String())
-			}
-
-			return nil, fmt.Errorf("append: expected list, got %s", arg.String())
-		}
-
-		result = append(result, list.elements...)
-	}
-
-	return &ListExpr{elements: result}, nil
+	return e.String()
 }
 
 func builtinDisplay(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("display: expected 1 argument, got %d", len(args))
+	if err := checkArity("display", args, 1); err != nil {
+		return nil, err
 	}
 
-	// Strings display without surrounding quotes.
-	if s, ok := args[0].(*StringExpr); ok {
-		fmt.Print(s.val)
-	} else {
-		fmt.Print(args[0].String())
-	}
+	fmt.Print(displayValue(args[0]))
 
 	return Void(), nil
 }
 
-func builtinDisplayLn(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("display-ln: expected 1 argument, got %d", len(args))
-	}
-
-	// Strings display without surrounding quotes.
-	if s, ok := args[0].(*StringExpr); ok {
-		fmt.Println(s.val)
-	} else {
-		fmt.Println(args[0].String())
-	}
-
-	return Void(), nil
-}
 
 func builtinValues(args []Expr) (Expr, error) {
 	if len(args) == 1 {
@@ -429,8 +453,8 @@ func builtinValues(args []Expr) (Expr, error) {
 }
 
 func builtinNewline(args []Expr) (Expr, error) {
-	if len(args) != 0 {
-		return nil, fmt.Errorf("newline: expected 0 arguments, got %d", len(args))
+	if err := checkArity("newline", args, 0); err != nil {
+		return nil, err
 	}
 
 	fmt.Println()
@@ -453,8 +477,8 @@ func builtinStringAppend(args []Expr) (Expr, error) {
 }
 
 func builtinToString(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("->string: expected 1 argument, got %d", len(args))
+	if err := checkArity("->string", args, 1); err != nil {
+		return nil, err
 	}
 
 	if s, ok := args[0].(*StringExpr); ok {
@@ -475,117 +499,106 @@ func typePred(name string, pred func(Expr) bool) BuiltinFn {
 }
 
 func builtinEq(args []Expr) (Expr, error) {
-	if len(args) != 2 {
-		return nil, fmt.Errorf("eq?: expected 2 arguments, got %d", len(args))
+	if err := checkArity("eq?", args, 2); err != nil {
+		return nil, err
 	}
 
 	return boolean(eqv(args[0], args[1])), nil
 }
 
-func deepEqual(a, b Expr) bool {
-	la, okA := a.(*ListExpr)
-	lb, okB := b.(*ListExpr)
-
-	if okA && okB {
-		if len(la.elements) != len(lb.elements) {
-			return false
-		}
-		for i := range la.elements {
-			if !deepEqual(la.elements[i], lb.elements[i]) {
-				return false
-			}
-		}
-
-		return true
+func elemsEqual(a, b []Expr) bool {
+	if len(a) != len(b) {
+		return false
 	}
 
-	va, okVA := a.(*VectorExpr)
-	vb, okVB := b.(*VectorExpr)
-
-	if okVA && okVB {
-		if len(va.elements) != len(vb.elements) {
+	for i := range a {
+		if !deepEqual(a[i], b[i]) {
 			return false
 		}
-		for i := range va.elements {
-			if !deepEqual(va.elements[i], vb.elements[i]) {
-				return false
-			}
-		}
+	}
 
-		return true
+	return true
+}
+
+func deepEqual(a, b Expr) bool {
+	if la, ok := a.(*ListExpr); ok {
+		if lb, ok := b.(*ListExpr); ok {
+			return elemsEqual(la.elements, lb.elements)
+		}
+	}
+
+	if va, ok := a.(*VectorExpr); ok {
+		if vb, ok := b.(*VectorExpr); ok {
+			return elemsEqual(va.elements, vb.elements)
+		}
 	}
 
 	return eqv(a, b)
 }
 
 func builtinEqual(args []Expr) (Expr, error) {
-	if len(args) != 2 {
-		return nil, fmt.Errorf("equal?: expected 2 arguments, got %d", len(args))
+	if err := checkArity("equal?", args, 2); err != nil {
+		return nil, err
 	}
 
 	return boolean(deepEqual(args[0], args[1])), nil
 }
 
+// numPairOp extracts two numbers from a 2-arg call and applies fn.
+func numPairOp(name string, args []Expr, fn func(a, b float64) (Expr, error)) (Expr, error) {
+	if err := checkArity(name, args, 2); err != nil {
+		return nil, err
+	}
+
+	a, err := toNum(name, args[0])
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := toNum(name, args[1])
+	if err != nil {
+		return nil, err
+	}
+
+	return fn(a, b)
+}
+
 func builtinModulo(args []Expr) (Expr, error) {
-	if len(args) != 2 {
-		return nil, fmt.Errorf("modulo: expected 2 arguments, got %d", len(args))
-	}
+	return numPairOp("modulo", args, func(a, b float64) (Expr, error) {
+		if b == 0 {
+			return nil, fmt.Errorf("modulo: division by zero")
+		}
 
-	a, err := toNum("modulo", args[0])
-	if err != nil {
-		return nil, err
-	}
+		r := math.Mod(a, b)
+		if r != 0 && (r < 0) != (b < 0) {
+			r += b
+		}
 
-	b, err := toNum("modulo", args[1])
-	if err != nil {
-		return nil, err
-	}
-
-	if b == 0 {
-		return nil, fmt.Errorf("modulo: division by zero")
-	}
-
-	r := math.Mod(a, b)
-	if r != 0 && (r < 0) != (b < 0) {
-		r += b
-	}
-
-	return num(r), nil
+		return num(r), nil
+	})
 }
 
 func builtinRemainder(args []Expr) (Expr, error) {
-	if len(args) != 2 {
-		return nil, fmt.Errorf("remainder: expected 2 arguments, got %d", len(args))
-	}
+	return numPairOp("remainder", args, func(a, b float64) (Expr, error) {
+		if b == 0 {
+			return nil, fmt.Errorf("remainder: division by zero")
+		}
 
-	a, err := toNum("remainder", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	b, err := toNum("remainder", args[1])
-	if err != nil {
-		return nil, err
-	}
-
-	if b == 0 {
-		return nil, fmt.Errorf("remainder: division by zero")
-	}
-
-	return num(math.Mod(a, b)), nil
+		return num(math.Mod(a, b)), nil
+	})
 }
 
 func builtinGetEnvVar(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("get-environment-variable: expected 1 argument, got %d", len(args))
+	if err := checkArity("get-environment-variable", args, 1); err != nil {
+		return nil, err
 	}
 
-	s, ok := args[0].(*StringExpr)
-	if !ok {
-		return nil, fmt.Errorf("get-environment-variable: expected string, got %s", args[0].String())
+	s, err := toStr("get-environment-variable", args[0])
+	if err != nil {
+		return nil, err
 	}
 
-	val, found := os.LookupEnv(s.val)
+	val, found := os.LookupEnv(s)
 	if !found {
 		return boolean(false), nil
 	}
@@ -594,8 +607,8 @@ func builtinGetEnvVar(args []Expr) (Expr, error) {
 }
 
 func builtinGetEnvVars(args []Expr) (Expr, error) {
-	if len(args) != 0 {
-		return nil, fmt.Errorf("get-environment-variables: expected 0 arguments, got %d", len(args))
+	if err := checkArity("get-environment-variables", args, 0); err != nil {
+		return nil, err
 	}
 
 	environ := os.Environ()
@@ -650,46 +663,26 @@ func builtinMakeVector(args []Expr) (Expr, error) {
 }
 
 func builtinVectorRef(args []Expr) (Expr, error) {
-	if len(args) != 2 {
-		return nil, fmt.Errorf("vector-ref: expected 2 arguments, got %d", len(args))
-	}
-
-	vec, ok := args[0].(*VectorExpr)
-	if !ok {
-		return nil, fmt.Errorf("vector-ref: expected vector, got %s", args[0].String())
-	}
-
-	k, err := toNum("vector-ref", args[1])
-	if err != nil {
+	if err := checkArity("vector-ref", args, 2); err != nil {
 		return nil, err
 	}
 
-	idx := int(k)
-	if idx < 0 || idx >= len(vec.elements) {
-		return nil, fmt.Errorf("vector-ref: index %d out of range for vector of length %d", idx, len(vec.elements))
+	vec, idx, err := vecIndex("vector-ref", args)
+	if err != nil {
+		return nil, err
 	}
 
 	return vec.elements[idx], nil
 }
 
 func builtinVectorSet(args []Expr) (Expr, error) {
-	if len(args) != 3 {
-		return nil, fmt.Errorf("vector-set!: expected 3 arguments, got %d", len(args))
-	}
-
-	vec, ok := args[0].(*VectorExpr)
-	if !ok {
-		return nil, fmt.Errorf("vector-set!: expected vector, got %s", args[0].String())
-	}
-
-	k, err := toNum("vector-set!", args[1])
-	if err != nil {
+	if err := checkArity("vector-set!", args, 3); err != nil {
 		return nil, err
 	}
 
-	idx := int(k)
-	if idx < 0 || idx >= len(vec.elements) {
-		return nil, fmt.Errorf("vector-set!: index %d out of range for vector of length %d", idx, len(vec.elements))
+	vec, idx, err := vecIndex("vector-set!", args)
+	if err != nil {
+		return nil, err
 	}
 
 	vec.elements[idx] = args[2]
@@ -698,26 +691,26 @@ func builtinVectorSet(args []Expr) (Expr, error) {
 }
 
 func builtinVectorLength(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("vector-length: expected 1 argument, got %d", len(args))
+	if err := checkArity("vector-length", args, 1); err != nil {
+		return nil, err
 	}
 
-	vec, ok := args[0].(*VectorExpr)
-	if !ok {
-		return nil, fmt.Errorf("vector-length: expected vector, got %s", args[0].String())
+	vec, err := toVec("vector-length", args[0])
+	if err != nil {
+		return nil, err
 	}
 
 	return num(float64(len(vec.elements))), nil
 }
 
 func builtinVectorToList(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("vector->list: expected 1 argument, got %d", len(args))
+	if err := checkArity("vector->list", args, 1); err != nil {
+		return nil, err
 	}
 
-	vec, ok := args[0].(*VectorExpr)
-	if !ok {
-		return nil, fmt.Errorf("vector->list: expected vector, got %s", args[0].String())
+	vec, err := toVec("vector->list", args[0])
+	if err != nil {
+		return nil, err
 	}
 
 	elems := make([]Expr, len(vec.elements))
@@ -727,13 +720,13 @@ func builtinVectorToList(args []Expr) (Expr, error) {
 }
 
 func builtinListToVector(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("list->vector: expected 1 argument, got %d", len(args))
+	if err := checkArity("list->vector", args, 1); err != nil {
+		return nil, err
 	}
 
-	lst, ok := args[0].(*ListExpr)
-	if !ok {
-		return nil, fmt.Errorf("list->vector: expected list, got %s", args[0].String())
+	lst, err := toList("list->vector", args[0])
+	if err != nil {
+		return nil, err
 	}
 
 	elems := make([]Expr, len(lst.elements))
@@ -743,13 +736,13 @@ func builtinListToVector(args []Expr) (Expr, error) {
 }
 
 func builtinVectorFill(args []Expr) (Expr, error) {
-	if len(args) != 2 {
-		return nil, fmt.Errorf("vector-fill!: expected 2 arguments, got %d", len(args))
+	if err := checkArity("vector-fill!", args, 2); err != nil {
+		return nil, err
 	}
 
-	vec, ok := args[0].(*VectorExpr)
-	if !ok {
-		return nil, fmt.Errorf("vector-fill!: expected vector, got %s", args[0].String())
+	vec, err := toVec("vector-fill!", args[0])
+	if err != nil {
+		return nil, err
 	}
 
 	for i := range vec.elements {
@@ -760,55 +753,55 @@ func builtinVectorFill(args []Expr) (Expr, error) {
 }
 
 func builtinSymbolToString(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("symbol->string: expected 1 argument, got %d", len(args))
+	if err := checkArity("symbol->string", args, 1); err != nil {
+		return nil, err
 	}
 
-	sym, ok := args[0].(*SymbolExpr)
-	if !ok {
-		return nil, fmt.Errorf("symbol->string: expected symbol, got %s", args[0].String())
+	val, err := toSym("symbol->string", args[0])
+	if err != nil {
+		return nil, err
 	}
 
-	return &StringExpr{val: sym.val}, nil
+	return &StringExpr{val: val}, nil
 }
 
 func builtinStringToSymbol(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("string->symbol: expected 1 argument, got %d", len(args))
+	if err := checkArity("string->symbol", args, 1); err != nil {
+		return nil, err
 	}
 
-	s, ok := args[0].(*StringExpr)
-	if !ok {
-		return nil, fmt.Errorf("string->symbol: expected string, got %s", args[0].String())
+	val, err := toStr("string->symbol", args[0])
+	if err != nil {
+		return nil, err
 	}
 
-	return &SymbolExpr{val: s.val}, nil
+	return &SymbolExpr{val: val}, nil
 }
 
 func builtinGensym(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("gensym: expected 1 argument, got %d", len(args))
+	if err := checkArity("gensym", args, 1); err != nil {
+		return nil, err
 	}
 
-	s, ok := args[0].(*StringExpr)
-	if !ok {
-		return nil, fmt.Errorf("gensym: expected string, got %s", args[0].String())
+	val, err := toStr("gensym", args[0])
+	if err != nil {
+		return nil, err
 	}
 
-	return &SymbolExpr{val: gensym(s.val)}, nil
+	return &SymbolExpr{val: gensym(val)}, nil
 }
 
 func builtinDatumToSyntax(args []Expr) (Expr, error) {
-	if len(args) != 2 {
-		return nil, fmt.Errorf("datum->syntax: expected 2 arguments, got %d", len(args))
+	if err := checkArity("datum->syntax", args, 2); err != nil {
+		return nil, err
 	}
 
 	return args[1], nil
 }
 
 func builtinSyntaxToDatum(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("syntax->datum: expected 1 argument, got %d", len(args))
+	if err := checkArity("syntax->datum", args, 1); err != nil {
+		return nil, err
 	}
 
 	return args[0], nil

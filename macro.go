@@ -84,6 +84,42 @@ func (b *macroBindings) isPatternVar(name string) bool {
 	return inVars || inEllipsis
 }
 
+// parseLiterals extracts symbol names from a literal list expression,
+// returning a set. Used by syntax-rules and syntax-case.
+func parseLiterals(name string, list *ListExpr) (map[string]bool, error) {
+	literals := make(map[string]bool, len(list.elements))
+
+	for _, el := range list.elements {
+		sym, ok := el.(*SymbolExpr)
+		if !ok {
+			return nil, fmt.Errorf("%s: literal must be a symbol, got %s", name, el.String())
+		}
+
+		literals[sym.val] = true
+	}
+
+	return literals, nil
+}
+
+// mergeSyntaxEnv creates a new syntaxEnvExpr by merging an existing syntax
+// environment (may be nil) with additional bindings and literals.
+func mergeSyntaxEnv(existing *syntaxEnvExpr, b *macroBindings, literals map[string]bool) *syntaxEnvExpr {
+	merged := newMacroBindings()
+	mergedLiterals := make(map[string]bool)
+
+	if existing != nil {
+		maps.Copy(merged.vars, existing.bindings.vars)
+		maps.Copy(merged.ellipsis, existing.bindings.ellipsis)
+		maps.Copy(mergedLiterals, existing.literals)
+	}
+
+	maps.Copy(merged.vars, b.vars)
+	maps.Copy(merged.ellipsis, b.ellipsis)
+	maps.Copy(mergedLiterals, literals)
+
+	return &syntaxEnvExpr{bindings: merged, literals: mergedLiterals}
+}
+
 // matchPattern matches a single pattern element against a form element,
 // recording any captured bindings. Returns false if the match fails.
 //
@@ -410,13 +446,9 @@ func evalSyntaxRules(args []Expr, env *Environment) (Expr, error) {
 		return nil, fmt.Errorf("syntax-rules: first argument must be a list of literals, got %s", args[0].String())
 	}
 
-	literals := make(map[string]bool, len(litList.elements))
-	for _, el := range litList.elements {
-		sym, ok := el.(*SymbolExpr)
-		if !ok {
-			return nil, fmt.Errorf("syntax-rules: literal must be a symbol, got %s", el.String())
-		}
-		literals[sym.val] = true
+	literals, err := parseLiterals("syntax-rules", litList)
+	if err != nil {
+		return nil, err
 	}
 
 	rules := make([]macroRule, 0, len(args)-1)

@@ -1,9 +1,6 @@
 package glerp
 
-import (
-	"fmt"
-	"maps"
-)
+import "fmt"
 
 // syntaxBindingsKey is the environment key used to thread macro bindings
 // from syntax-case to the syntax template form.
@@ -60,13 +57,9 @@ func evalSyntaxCase(args []Expr, env *Environment) (Expr, error) {
 		return nil, fmt.Errorf("syntax-case: literals must be a list")
 	}
 
-	literals := make(map[string]bool, len(litList.elements))
-	for _, el := range litList.elements {
-		sym, ok := el.(*SymbolExpr)
-		if !ok {
-			return nil, fmt.Errorf("syntax-case: literal must be a symbol, got %s", el.String())
-		}
-		literals[sym.val] = true
+	literals, err := parseLiterals("syntax-case", litList)
+	if err != nil {
+		return nil, err
 	}
 
 	for _, arg := range args[2:] {
@@ -99,7 +92,7 @@ func evalSyntaxCase(args []Expr, env *Environment) (Expr, error) {
 			if err != nil {
 				return nil, err
 			}
-			if fb, ok := fv.(*BoolExpr); ok && !fb.val {
+			if isFalse(fv) {
 				continue
 			}
 		}
@@ -144,15 +137,7 @@ func evalWithSyntax(args []Expr, env *Environment) (Expr, error) {
 		return nil, fmt.Errorf("with-syntax: first argument must be a list of bindings")
 	}
 
-	existing := lookupSyntaxEnv(env)
-	merged := newMacroBindings()
-	mergedLiterals := make(map[string]bool)
-
-	if existing != nil {
-		maps.Copy(merged.vars, existing.bindings.vars)
-		maps.Copy(merged.ellipsis, existing.bindings.ellipsis)
-		maps.Copy(mergedLiterals, existing.literals)
-	}
+	se := mergeSyntaxEnv(lookupSyntaxEnv(env), newMacroBindings(), nil)
 
 	for _, binding := range bindingList.elements {
 		pair, ok := binding.(*ListExpr)
@@ -166,18 +151,17 @@ func evalWithSyntax(args []Expr, env *Environment) (Expr, error) {
 		}
 
 		b := newMacroBindings()
-		if !matchPattern(pair.elements[0], val, mergedLiterals, b) {
+		if !matchPattern(pair.elements[0], val, se.literals, b) {
 			return nil, fmt.Errorf("with-syntax: pattern %s does not match value %s",
 				pair.elements[0].String(), val.String())
 		}
 
-		maps.Copy(merged.vars, b.vars)
-		maps.Copy(merged.ellipsis, b.ellipsis)
+		se = mergeSyntaxEnv(se, b, nil)
 	}
 
 	child := env.Extend()
-	bindSyntaxVars(child, merged)
-	child.Bind(syntaxBindingsKey, &syntaxEnvExpr{bindings: merged, literals: mergedLiterals})
+	bindSyntaxVars(child, se.bindings)
+	child.Bind(syntaxBindingsKey, se)
 
 	return evalBody(args[1:], child)
 }
@@ -201,21 +185,7 @@ func bindSyntaxVars(env *Environment, b *macroBindings) {
 // an enclosing syntax-case.
 func storeSyntaxBindings(env *Environment, b *macroBindings, literals map[string]bool, outer *Environment) {
 	existing := lookupSyntaxEnv(outer)
-
-	merged := newMacroBindings()
-	mergedLiterals := make(map[string]bool)
-
-	if existing != nil {
-		maps.Copy(merged.vars, existing.bindings.vars)
-		maps.Copy(merged.ellipsis, existing.bindings.ellipsis)
-		maps.Copy(mergedLiterals, existing.literals)
-	}
-
-	maps.Copy(merged.vars, b.vars)
-	maps.Copy(merged.ellipsis, b.ellipsis)
-	maps.Copy(mergedLiterals, literals)
-
-	env.Bind(syntaxBindingsKey, &syntaxEnvExpr{bindings: merged, literals: mergedLiterals})
+	env.Bind(syntaxBindingsKey, mergeSyntaxEnv(existing, b, literals))
 }
 
 // evalQuasisyntax implements (quasisyntax <template>) / #`<template>.

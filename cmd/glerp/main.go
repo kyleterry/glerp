@@ -140,7 +140,7 @@ func runREPL() {
 				buf.Reset()
 				rl.SetPrompt("> ")
 			} else {
-				rl.SetPrompt("  ")
+				rl.SetPrompt("( ")
 			}
 			continue
 		}

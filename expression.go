@@ -13,6 +13,25 @@ type Expr interface {
 	String() string
 }
 
+// joinExprs formats a slice of expressions into a single string with the
+// given separator, used by ListExpr, VectorExpr, and ValuesExpr.
+func joinExprs(exprs []Expr, sep string) string {
+	parts := make([]string, len(exprs))
+
+	for i, e := range exprs {
+		parts[i] = e.String()
+	}
+
+	return strings.Join(parts, sep)
+}
+
+// isFalse reports whether e is the Scheme false value (#f).
+// In Scheme, only #f is falsy; everything else (including 0, "", and '()) is truthy.
+func isFalse(e Expr) bool {
+	b, ok := e.(*BoolExpr)
+	return ok && !b.val
+}
+
 // NumberExpr is a numeric literal.
 type NumberExpr struct {
 	tok Token
@@ -106,13 +125,7 @@ func (e *ListExpr) String() string {
 		return "()"
 	}
 
-	parts := make([]string, len(e.elements))
-
-	for i, el := range e.elements {
-		parts[i] = el.String()
-	}
-
-	return "(" + strings.Join(parts, " ") + ")"
+	return "(" + joinExprs(e.elements, " ") + ")"
 }
 
 func (e *ListExpr) Eval(env *Environment) (Expr, error) {
@@ -187,13 +200,7 @@ func (e *VectorExpr) Elements() []Expr { return e.elements }
 func (e *VectorExpr) Length() int { return len(e.elements) }
 
 func (e *VectorExpr) String() string {
-	parts := make([]string, len(e.elements))
-
-	for i, el := range e.elements {
-		parts[i] = el.String()
-	}
-
-	return "#(" + strings.Join(parts, " ") + ")"
+	return "#(" + joinExprs(e.elements, " ") + ")"
 }
 
 // LambdaExpr is a user-defined procedure (closure).
@@ -212,13 +219,7 @@ func (e *LambdaExpr) Token() Token { return e.tok }
 
 // String returns a summary representation showing the parameter list.
 func (e *LambdaExpr) String() string {
-	if e.rest == "" {
-		return "(lambda (" + strings.Join(e.params, " ") + ") ...)"
-	}
-	if len(e.params) == 0 {
-		return "(lambda " + e.rest + " ...)"
-	}
-	return "(lambda (" + strings.Join(e.params, " ") + " . " + e.rest + ") ...)"
+	return "#<procedure>"
 }
 
 // FormExpr is a Go-implemented special form. Unlike BuiltinExpr, its arguments
@@ -252,13 +253,7 @@ func (e *ValuesExpr) Token() Token { return Token{} }
 
 // String returns a readable representation of all contained values.
 func (e *ValuesExpr) String() string {
-	parts := make([]string, len(e.vals))
-
-	for i, v := range e.vals {
-		parts[i] = v.String()
-	}
-
-	return "(values " + strings.Join(parts, " ") + ")"
+	return "(values " + joinExprs(e.vals, " ") + ")"
 }
 
 // Values returns the individual expressions wrapped by this object.
@@ -418,8 +413,7 @@ func evalIf(args []Expr, env *Environment) (Expr, error) {
 		return nil, err
 	}
 
-	// In Scheme, only #f is falsy.
-	if b, ok := cond.(*BoolExpr); ok && !b.val {
+	if isFalse(cond) {
 		if len(args) == 3 {
 			return args[2].Eval(env)
 		}
@@ -429,14 +423,17 @@ func evalIf(args []Expr, env *Environment) (Expr, error) {
 	return args[1].Eval(env)
 }
 
-func evalLet(args []Expr, env *Environment) (Expr, error) {
+// evalLetBindings is the shared core of let and let*. In let (sequential=false),
+// all binding values are evaluated in the outer env before any are bound. In
+// let* (sequential=true), each binding is evaluated in the growing child env.
+func evalLetBindings(name string, args []Expr, env *Environment, sequential bool) (Expr, error) {
 	if len(args) < 2 {
-		return nil, fmt.Errorf("let: requires bindings and body")
+		return nil, fmt.Errorf("%s: requires bindings and body", name)
 	}
 
 	bindings, ok := args[0].(*ListExpr)
 	if !ok {
-		return nil, fmt.Errorf("let: bindings must be a list")
+		return nil, fmt.Errorf("%s: bindings must be a list", name)
 	}
 
 	child := env.Extend()
@@ -444,16 +441,20 @@ func evalLet(args []Expr, env *Environment) (Expr, error) {
 	for _, b := range bindings.elements {
 		pair, ok := b.(*ListExpr)
 		if !ok || len(pair.elements) != 2 {
-			return nil, fmt.Errorf("let: each binding must be (name value)")
+			return nil, fmt.Errorf("%s: each binding must be (name value)", name)
 		}
 
 		sym, ok := pair.elements[0].(*SymbolExpr)
 		if !ok {
-			return nil, fmt.Errorf("let: binding name must be a symbol")
+			return nil, fmt.Errorf("%s: binding name must be a symbol", name)
 		}
 
-		// Evaluate binding values in the outer env (parallel binding).
-		val, err := pair.elements[1].Eval(env)
+		evalEnv := env
+		if sequential {
+			evalEnv = child
+		}
+
+		val, err := pair.elements[1].Eval(evalEnv)
 		if err != nil {
 			return nil, err
 		}
@@ -464,39 +465,12 @@ func evalLet(args []Expr, env *Environment) (Expr, error) {
 	return evalBody(args[1:], child)
 }
 
+func evalLet(args []Expr, env *Environment) (Expr, error) {
+	return evalLetBindings("let", args, env, false)
+}
+
 func evalLetStar(args []Expr, env *Environment) (Expr, error) {
-	if len(args) < 2 {
-		return nil, fmt.Errorf("let*: requires bindings and body")
-	}
-
-	bindings, ok := args[0].(*ListExpr)
-	if !ok {
-		return nil, fmt.Errorf("let*: bindings must be a list")
-	}
-
-	child := env.Extend()
-
-	for _, b := range bindings.elements {
-		pair, ok := b.(*ListExpr)
-		if !ok || len(pair.elements) != 2 {
-			return nil, fmt.Errorf("let*: each binding must be (name value)")
-		}
-
-		sym, ok := pair.elements[0].(*SymbolExpr)
-		if !ok {
-			return nil, fmt.Errorf("let*: binding name must be a symbol")
-		}
-
-		// Evaluate each binding in the growing child env (sequential binding).
-		val, err := pair.elements[1].Eval(child)
-		if err != nil {
-			return nil, err
-		}
-
-		child.Bind(sym.val, val)
-	}
-
-	return evalBody(args[1:], child)
+	return evalLetBindings("let*", args, env, true)
 }
 
 func evalQuote(args []Expr, _ *Environment) (Expr, error) {
@@ -801,7 +775,7 @@ func evalCond(args []Expr, env *Environment) (Expr, error) {
 			return nil, err
 		}
 
-		if b, ok := result.(*BoolExpr); !ok || b.val {
+		if !isFalse(result) {
 			return evalBody(body, env)
 		}
 	}
@@ -818,7 +792,7 @@ func evalAnd(args []Expr, env *Environment) (Expr, error) {
 			return nil, err
 		}
 
-		if b, ok := val.(*BoolExpr); ok && !b.val {
+		if isFalse(val) {
 			return boolean(false), nil
 		}
 
@@ -835,7 +809,7 @@ func evalOr(args []Expr, env *Environment) (Expr, error) {
 			return nil, err
 		}
 
-		if b, ok := val.(*BoolExpr); !ok || b.val {
+		if !isFalse(val) {
 			return val, nil
 		}
 	}
@@ -912,7 +886,7 @@ func evalDo(args []Expr, env *Environment) (Expr, error) {
 			return nil, err
 		}
 		// Truthy test: return result (void if no result expressions).
-		if b, ok := testVal.(*BoolExpr); !ok || b.val {
+		if !isFalse(testVal) {
 			if len(resultExprs) == 0 {
 				return Void(), nil
 			}
