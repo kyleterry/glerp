@@ -1,6 +1,11 @@
 ; glerp prelude — project-specific sugar
-(import :glerp/struct)
-(export empty? display-ln)
+(import :glerp/sugar
+        :glerp/struct)
+
+(export define-syntax*
+        struct
+        empty?
+        display-ln)
 
 (define empty? null?)
 

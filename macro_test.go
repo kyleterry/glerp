@@ -293,6 +293,34 @@ func TestSyntaxCase(t *testing.T) {
 			(define v (make-vec2 3 4))
 			(list (vec2-x (vec2-scale v 2)) (vec2-mag-sq v))
 		`, "(6 25)"},
+
+		// define-syntax* from prelude
+		{"define-syntax* syntax-rules", `
+			(define-syntax* my-if ()
+				[(_ test then else)
+				 (cond [test then] [#t else])])
+			(my-if #t 1 2)
+		`, "1"},
+		{"define-syntax* syntax-case", `
+			(define-syntax* (my-swap! stx) ()
+				[(_ a b)
+				 (syntax
+				   (let ([tmp a])
+				     (set! a b)
+				     (set! b tmp)))])
+			(define x 10)
+			(define y 20)
+			(my-swap! x y)
+			(list x y)
+		`, "(20 10)"},
+		{"define-syntax* with literals", `
+			(define-syntax* (my-when stx) ()
+				[(_ test body ...)
+				 (syntax (if test (begin body ...) (void)))])
+			(define x 0)
+			(my-when #t (set! x 1) (set! x (+ x 1)))
+			x
+		`, "2"},
 	}
 
 	for _, tt := range tests {

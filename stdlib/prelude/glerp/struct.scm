@@ -14,6 +14,8 @@
 ;;;
 ;;; Memory layout: #(<name-tag> field0 field1 ...)
 
+(import :glerp/sugar)
+
 (export struct)
 
 (define (struct-iota n)
@@ -29,10 +31,8 @@
         [prefixed (string->symbol $"{name}-{(car mdef)}")])
     `(define (,prefixed ,@margs) ,@mbody)))
 
-(define-syntax struct
-  (lambda (stx)
-    (syntax-case stx (methods)
-      [(_ name field ... (methods method-def ...))
+(define-syntax* (struct stx) (methods)
+  [(_ name field ... (methods method-def ...))
        (let* ([fields  (syntax (field ...))]
               [n       (length fields)]
               [ctor    (string->symbol $"make-{name}")]
@@ -59,27 +59,5 @@
                (define (getter obj) (vector-ref obj idx)) ...
                (define (setter obj val) (vector-set! obj idx val)) ...
                mdefine ...))))]
-
-      [(_ name field ...)
-       (let* ([fields  (syntax (field ...))]
-              [n       (length fields)]
-              [ctor    (string->symbol $"make-{name}")]
-              [pred    (string->symbol $"{name}?")]
-              [getters (map (lambda (f) (string->symbol $"{name}-{f}")) fields)]
-              [setters (map (lambda (f) (string->symbol $"set-{name}-{f}!")) fields)]
-              [indices (struct-iota n)])
-         (with-syntax ([ctor ctor]
-                       [pred pred]
-                       [(getter ...) getters]
-                       [(setter ...) setters]
-                       [(idx ...) indices])
-           (syntax
-             (begin
-               (define (ctor field ...)
-                 (vector (quote name) field ...))
-               (define (pred obj)
-                 (and (vector? obj)
-                      (> (vector-length obj) 0)
-                      (eq? (vector-ref obj 0) (quote name))))
-               (define (getter obj) (vector-ref obj idx)) ...
-               (define (setter obj val) (vector-set! obj idx val)) ...))))])))
+  [(_ name field ...)
+   (syntax (struct2 name field ... (methods)))])
