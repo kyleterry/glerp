@@ -60,4 +60,4 @@
                (define (setter obj val) (vector-set! obj idx val)) ...
                mdefine ...))))]
   [(_ name field ...)
-   (syntax (struct2 name field ... (methods)))])
+   (syntax (struct name field ... (methods)))])
