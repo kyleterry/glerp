@@ -272,6 +272,27 @@ func TestSyntaxCase(t *testing.T) {
 			(struct point x y)
 			(point? 42)
 		`, "#f"},
+		{"struct methods", `
+			(struct point x y
+				(methods
+					(add (p other)
+						(make-point (+ (point-x p) (point-x other))
+									(+ (point-y p) (point-y other))))))
+			(define a (make-point 1 2))
+			(define b (make-point 3 4))
+			(define c (point-add a b))
+			(list (point-x c) (point-y c))
+		`, "(4 6)"},
+		{"struct multiple methods", `
+			(struct vec2 x y
+				(methods
+					(scale (v n)
+						(make-vec2 (* (vec2-x v) n) (* (vec2-y v) n)))
+					(mag-sq (v)
+						(+ (* (vec2-x v) (vec2-x v)) (* (vec2-y v) (vec2-y v))))))
+			(define v (make-vec2 3 4))
+			(list (vec2-x (vec2-scale v 2)) (vec2-mag-sq v))
+		`, "(6 25)"},
 	}
 
 	for _, tt := range tests {
