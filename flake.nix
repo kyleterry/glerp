@@ -12,14 +12,24 @@
         pkgs = nixpkgs.legacyPackages.${system};
       in
       {
-        devShells.default = pkgs.mkShell {
-          packages = [
-            pkgs.go_1_26
-            pkgs.gotools
-            pkgs.golangci-lint
-            pkgs.golines
-            pkgs.gopls
+        devShells = with pkgs; let
+          common = [
+            go_1_26
+            go-task
+            golangci-lint
           ];
+        in {
+          default = mkShell {
+            packages = common ++ [
+              gotools
+              golines
+              gopls
+            ];
+          };
+
+          ci = mkShell {
+            packages = common;
+          };
         };
       });
 }

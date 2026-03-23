@@ -1,0 +1,79 @@
+version: "3"
+
+vars:
+  BIN: glerp
+  CMD: ./cmd/glerp
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list-all
+
+  build:
+    desc: Build the glerp binary
+    cmds:
+      - go build -o {{.BIN}} {{.CMD}}
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    generates:
+      - "{{.BIN}}"
+
+  run:
+    desc: Build and run the REPL
+    deps: [build]
+    cmds:
+      - ./{{.BIN}}
+    interactive: true
+
+  eval:
+    desc: Evaluate a scheme expression (task eval -- '(+ 1 2)')
+    deps: [build]
+    cmds:
+      - echo '{{.CLI_ARGS}}' | ./{{.BIN}}
+
+  test:
+    desc: Run all tests
+    cmds:
+      - go test ./...
+
+  test:v:
+    desc: Run all tests (verbose)
+    cmds:
+      - go test -v ./...
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run ./...
+
+  fmt:
+    desc: Format Go source files
+    cmds:
+      - gofmt -w .
+      - golines -w .
+
+  ci:
+    desc: Run the full CI pipeline locally
+    cmds:
+      - task: build
+      - task: vet
+      - task: test
+      - task: lint
+
+  install:
+    desc: Install glerp to $GOPATH/bin
+    cmds:
+      - go install {{.CMD}}
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -f {{.BIN}}
