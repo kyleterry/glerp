@@ -16,8 +16,8 @@ jobs:
         with:
           name: nix-community
       - uses: DeterminateSystems/magic-nix-cache-action@v9
-      - name: Activate devshell
-        run: nix print-dev-env .#ci >> "$GITHUB_ENV"
+      - name: activate-nix
+        run: nix develop ".#ci" --print-build-logs --command bash -c 'cat >>"$GITHUB_PATH" <<<"$PATH"'
       - run: task vet
       - run: task test
       - run: task lint
