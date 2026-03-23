@@ -6,6 +6,7 @@ expression  = literal
             | symbol
             | list
             | vector
+            | hash_table
             | quoted
             | quasiquoted
             | unquoted
@@ -35,6 +36,7 @@ symbol_char = letter | digit | "!" | "?" | "-" | "_" | "+"
 
 list        = ( "(" | "[" ) , { expression } , ( ")" | "]" ) ;
 vector      = "#(" , { expression } , ")" ;
+hash_table  = "{" , { expression , expression } , "}" ;
 
 (* quoting *)
 

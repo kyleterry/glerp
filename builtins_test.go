@@ -98,6 +98,41 @@ func TestBuiltins(t *testing.T) {
 			(vector-ref v 0)
 		`, "1"},
 
+		// hash table operations
+		{"hash table empty literal", "{}", "{}"},
+		{"hash table literal", "(define a 1) (define b 2) {a b}", "{1 2}"},
+		{"make-hash-table", "(make-hash-table)", "{}"},
+		{"hash-table-set! and ref", `
+			(define h (make-hash-table))
+			(hash-table-set! h "a" 1)
+			(hash-table-ref h "a")
+		`, "1"},
+		{"hash-table-ref default", `(hash-table-ref (make-hash-table) "missing" 42)`, "42"},
+		{"hash-table-contains? true", `(hash-table-contains? {1 2} 1)`, "#t"},
+		{"hash-table-contains? false", `(hash-table-contains? {1 2} 99)`, "#f"},
+		{"hash-table-delete!", `
+			(define h {1 2 3 4})
+			(hash-table-delete! h 1)
+			(hash-table-size h)
+		`, "1"},
+		{"hash-table-size", "(hash-table-size {1 2 3 4})", "2"},
+		{"hash-table-keys", "(hash-table-keys {1 2 3 4})", "(1 3)"},
+		{"hash-table-values", "(hash-table-values {1 2 3 4})", "(2 4)"},
+		{"hash-table->alist", "(hash-table->alist {1 2})", "((1 2))"},
+		{"alist->hash-table", "(hash-table-ref (alist->hash-table '((a 1) (b 2))) 'a)", "1"},
+		{"hash-table?", "(hash-table? {})", "#t"},
+		{"hash-table? false", "(hash-table? '())", "#f"},
+		{"hash-table-copy", `
+			(define h {1 2})
+			(define h2 (hash-table-copy h))
+			(hash-table-set! h2 1 99)
+			(hash-table-ref h 1)
+		`, "2"},
+		{"equal? hash tables", "(equal? {1 2 3 4} {1 2 3 4})", "#t"},
+		{"equal? hash tables diff", "(equal? {1 2} {1 3})", "#f"},
+		{"eq? hash identity", "(define h {1 2}) (eq? h h)", "#t"},
+		{"eq? hash different", "(eq? {1 2} {1 2})", "#f"},
+
 		// get-environment-variables
 		{"get-env-vars is list", `(list? (get-environment-variables))`, "#t"},
 		{"get-env-vars contains test var", `

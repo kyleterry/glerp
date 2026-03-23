@@ -203,6 +203,102 @@ func (e *VectorExpr) String() string {
 	return "#(" + joinExprs(e.elements, " ") + ")"
 }
 
+// HashTableExpr is a mutable hash table mapping Scheme values to Scheme values.
+// Keys are compared by their String() representation. Written as {k1 v1 k2 v2 ...}.
+type HashTableExpr struct {
+	tok   Token
+	pairs []Expr          // unevaluated AST pairs (nil after eval)
+	data  map[string]Expr // String(key) -> value
+	keys  map[string]Expr // String(key) -> evaluated key
+	order []string        // insertion-order of String(key)
+}
+
+func (e *HashTableExpr) Eval(env *Environment) (Expr, error) {
+	if e.data != nil {
+		return e, nil
+	}
+
+	ht := newHashTable(e.tok)
+
+	for i := 0; i < len(e.pairs); i += 2 {
+		k, err := e.pairs[i].Eval(env)
+		if err != nil {
+			return nil, err
+		}
+
+		v, err := e.pairs[i+1].Eval(env)
+		if err != nil {
+			return nil, err
+		}
+
+		ht.Set(k, v)
+	}
+
+	return ht, nil
+}
+
+func (e *HashTableExpr) Token() Token { return e.tok }
+
+func (e *HashTableExpr) String() string {
+	if e.data == nil {
+		return "{" + joinExprs(e.pairs, " ") + "}"
+	}
+
+	if len(e.order) == 0 {
+		return "{}"
+	}
+
+	parts := make([]string, 0, len(e.order)*2)
+
+	for _, sk := range e.order {
+		if k, ok := e.keys[sk]; ok {
+			parts = append(parts, k.String(), e.data[sk].String())
+		}
+	}
+
+	return "{" + strings.Join(parts, " ") + "}"
+}
+
+func newHashTable(tok Token) *HashTableExpr {
+	return &HashTableExpr{
+		tok:  tok,
+		data: make(map[string]Expr),
+		keys: make(map[string]Expr),
+	}
+}
+
+func (e *HashTableExpr) Get(key Expr) (Expr, bool) {
+	v, ok := e.data[key.String()]
+	return v, ok
+}
+
+func (e *HashTableExpr) Set(key, val Expr) {
+	sk := key.String()
+
+	if _, exists := e.data[sk]; !exists {
+		e.order = append(e.order, sk)
+	}
+
+	e.data[sk] = val
+	e.keys[sk] = key
+}
+
+func (e *HashTableExpr) Delete(key Expr) {
+	sk := key.String()
+
+	delete(e.data, sk)
+	delete(e.keys, sk)
+
+	for i, k := range e.order {
+		if k == sk {
+			e.order = append(e.order[:i], e.order[i+1:]...)
+			break
+		}
+	}
+}
+
+func (e *HashTableExpr) Size() int { return len(e.data) }
+
 // LambdaExpr is a user-defined procedure (closure).
 type LambdaExpr struct {
 	tok    Token
@@ -534,6 +630,22 @@ func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
 		return &ListExpr{tok: expr.Token(), elements: []Expr{sym, expanded}}, nil
 	}
 
+	// Hash tables: expand key/value elements.
+	if ht, ok := expr.(*HashTableExpr); ok && ht.pairs != nil {
+		var result []Expr
+
+		for _, el := range ht.pairs {
+			expanded, err := expandQQ(el, depth, env)
+			if err != nil {
+				return nil, err
+			}
+
+			result = append(result, expanded)
+		}
+
+		return &HashTableExpr{tok: ht.tok, pairs: result}, nil
+	}
+
 	// Vectors: expand elements the same way as lists, but produce a VectorExpr.
 	if vec, ok := expr.(*VectorExpr); ok {
 		var result []Expr
@@ -702,6 +814,8 @@ func eqv(a, b Expr) bool {
 		y, ok := b.(*SymbolExpr)
 		return ok && x.val == y.val
 	case *VectorExpr:
+		return a == b
+	case *HashTableExpr:
 		return a == b
 	}
 	return false

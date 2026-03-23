@@ -189,9 +189,9 @@ func balanced(s string) bool {
 			inStr = !inStr
 		case inStr:
 			// skip string contents
-		case r == '(' || r == '[':
+		case r == '(' || r == '[' || r == '{':
 			depth++
-		case r == ')' || r == ']':
+		case r == ')' || r == ']' || r == '}':
 			depth--
 		}
 	}

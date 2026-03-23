@@ -33,6 +33,9 @@ func (p *Parser) parseExpr() (Expr, error) {
 	case LParen, LBrack:
 		return p.parseList()
 
+	case LBrace:
+		return p.parseHashTable()
+
 	case HashLParen:
 		return p.parseVector()
 
@@ -214,6 +217,36 @@ func (p *Parser) parseVector() (Expr, error) {
 	}
 
 	return &VectorExpr{tok: open, elements: elements}, nil
+}
+
+func (p *Parser) parseHashTable() (Expr, error) {
+	open := p.lexer.NextToken() // consume '{'
+
+	var elements []Expr
+
+	for {
+		peek := p.lexer.PeekToken()
+		if peek.Kind == RBrace {
+			p.lexer.NextToken()
+			break
+		}
+		if peek.Kind == EOF {
+			return nil, fmt.Errorf("unexpected EOF: unclosed '{'")
+		}
+
+		expr, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+
+		elements = append(elements, expr)
+	}
+
+	if len(elements)%2 != 0 {
+		return nil, fmt.Errorf("hash table literal requires an even number of elements")
+	}
+
+	return &HashTableExpr{tok: open, pairs: elements}, nil
 }
 
 // NewParser creates a parser that reads from the given lexer.
