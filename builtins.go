@@ -53,38 +53,19 @@ func StandardBuiltins() map[string]BuiltinFn {
 		"->string":                  builtinToString,
 		"get-environment-variable":  builtinGetEnvVar,
 		"get-environment-variables": builtinGetEnvVars,
-		"vector":                    builtinVector,
-		"make-vector":               builtinMakeVector,
-		"vector-ref":                builtinVectorRef,
-		"vector-set!":               builtinVectorSet,
-		"vector-length":             builtinVectorLength,
-		"vector?":                   typePred("vector?", func(e Expr) bool { _, ok := e.(*VectorExpr); return ok }),
-		"vector->list":              builtinVectorToList,
 		"length":                    builtinLength,
 		"map":                       builtinMap,
 		"apply":                     builtinApply,
-		"list->vector":              builtinListToVector,
-		"vector-fill!":              builtinVectorFill,
 		"symbol->string":            builtinSymbolToString,
 		"string->symbol":            builtinStringToSymbol,
 		"gensym":                    builtinGensym,
 		"datum->syntax":             builtinDatumToSyntax,
 		"syntax->datum":             builtinSyntaxToDatum,
-		"make-hash-table":           builtinMakeHashTable,
-		"hash-table?":               typePred("hash-table?", func(e Expr) bool { h, ok := e.(*HashTableExpr); return ok && h.data != nil }),
-		"hash-table-ref":            builtinHashTableRef,
-		"hash-table-set!":           builtinHashTableSet,
-		"hash-table-delete!":        builtinHashTableDelete,
-		"hash-table-contains?":      builtinHashTableContains,
-		"hash-table-size":           builtinHashTableSize,
-		"hash-table-keys":           builtinHashTableKeys,
-		"hash-table-values":         builtinHashTableValues,
-		"hash-table->alist":         builtinHashTableToAlist,
-		"alist->hash-table":         builtinAlistToHashTable,
-		"hash-table-copy":           builtinHashTableCopy,
 	}
 
 	maps.Copy(m, cxrBuiltins())
+	maps.Copy(m, vectorBuiltins())
+	maps.Copy(m, hashTableBuiltins())
 
 	return m
 }
@@ -162,24 +143,6 @@ func toList(name string, e Expr) (*ListExpr, error) {
 	return l, nil
 }
 
-func toVec(name string, e Expr) (*VectorExpr, error) {
-	v, ok := e.(*VectorExpr)
-	if !ok {
-		return nil, fmt.Errorf("%s: expected vector, got %s", name, e.String())
-	}
-
-	return v, nil
-}
-
-func toHash(name string, e Expr) (*HashTableExpr, error) {
-	h, ok := e.(*HashTableExpr)
-	if !ok || h.data == nil {
-		return nil, fmt.Errorf("%s: expected hash-table, got %s", name, e.String())
-	}
-
-	return h, nil
-}
-
 func toStr(name string, e Expr) (string, error) {
 	s, ok := e.(*StringExpr)
 	if !ok {
@@ -196,26 +159,6 @@ func toSym(name string, e Expr) (string, error) {
 	}
 
 	return s.val, nil
-}
-
-// vecIndex extracts a VectorExpr from args[0] and a valid index from args[1].
-func vecIndex(name string, args []Expr) (*VectorExpr, int, error) {
-	vec, err := toVec(name, args[0])
-	if err != nil {
-		return nil, 0, err
-	}
-
-	k, err := toNum(name, args[1])
-	if err != nil {
-		return nil, 0, err
-	}
-
-	idx := int(k)
-	if idx < 0 || idx >= len(vec.elements) {
-		return nil, 0, fmt.Errorf("%s: index %d out of range for vector of length %d", name, idx, len(vec.elements))
-	}
-
-	return vec, idx, nil
 }
 
 func num(v float64) *NumberExpr { return &NumberExpr{val: v} }
@@ -661,131 +604,6 @@ func builtinGetEnvVars(args []Expr) (Expr, error) {
 	return &ListExpr{elements: entries}, nil
 }
 
-func builtinVector(args []Expr) (Expr, error) {
-	elems := make([]Expr, len(args))
-	copy(elems, args)
-
-	return &VectorExpr{elements: elems}, nil
-}
-
-func builtinMakeVector(args []Expr) (Expr, error) {
-	if len(args) < 1 || len(args) > 2 {
-		return nil, fmt.Errorf("make-vector: expected 1 or 2 arguments, got %d", len(args))
-	}
-
-	k, err := toNum("make-vector", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	n := int(k)
-	if n < 0 {
-		return nil, fmt.Errorf("make-vector: length must be non-negative, got %d", n)
-	}
-
-	var fill Expr = num(0)
-	if len(args) == 2 {
-		fill = args[1]
-	}
-
-	elems := make([]Expr, n)
-	for i := range elems {
-		elems[i] = fill
-	}
-
-	return &VectorExpr{elements: elems}, nil
-}
-
-func builtinVectorRef(args []Expr) (Expr, error) {
-	if err := checkArity("vector-ref", args, 2); err != nil {
-		return nil, err
-	}
-
-	vec, idx, err := vecIndex("vector-ref", args)
-	if err != nil {
-		return nil, err
-	}
-
-	return vec.elements[idx], nil
-}
-
-func builtinVectorSet(args []Expr) (Expr, error) {
-	if err := checkArity("vector-set!", args, 3); err != nil {
-		return nil, err
-	}
-
-	vec, idx, err := vecIndex("vector-set!", args)
-	if err != nil {
-		return nil, err
-	}
-
-	vec.elements[idx] = args[2]
-
-	return Void(), nil
-}
-
-func builtinVectorLength(args []Expr) (Expr, error) {
-	if err := checkArity("vector-length", args, 1); err != nil {
-		return nil, err
-	}
-
-	vec, err := toVec("vector-length", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	return num(float64(len(vec.elements))), nil
-}
-
-func builtinVectorToList(args []Expr) (Expr, error) {
-	if err := checkArity("vector->list", args, 1); err != nil {
-		return nil, err
-	}
-
-	vec, err := toVec("vector->list", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	elems := make([]Expr, len(vec.elements))
-	copy(elems, vec.elements)
-
-	return &ListExpr{elements: elems}, nil
-}
-
-func builtinListToVector(args []Expr) (Expr, error) {
-	if err := checkArity("list->vector", args, 1); err != nil {
-		return nil, err
-	}
-
-	lst, err := toList("list->vector", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	elems := make([]Expr, len(lst.elements))
-	copy(elems, lst.elements)
-
-	return &VectorExpr{elements: elems}, nil
-}
-
-func builtinVectorFill(args []Expr) (Expr, error) {
-	if err := checkArity("vector-fill!", args, 2); err != nil {
-		return nil, err
-	}
-
-	vec, err := toVec("vector-fill!", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	for i := range vec.elements {
-		vec.elements[i] = args[1]
-	}
-
-	return Void(), nil
-}
-
 func builtinSymbolToString(args []Expr) (Expr, error) {
 	if err := checkArity("symbol->string", args, 1); err != nil {
 		return nil, err
@@ -839,191 +657,4 @@ func builtinSyntaxToDatum(args []Expr) (Expr, error) {
 	}
 
 	return args[0], nil
-}
-
-func builtinMakeHashTable(args []Expr) (Expr, error) {
-	if err := checkArity("make-hash-table", args, 0); err != nil {
-		return nil, err
-	}
-
-	return newHashTable(Token{}), nil
-}
-
-func builtinHashTableRef(args []Expr) (Expr, error) {
-	if len(args) < 2 || len(args) > 3 {
-		return nil, fmt.Errorf("hash-table-ref: expected 2 or 3 arguments, got %d", len(args))
-	}
-
-	ht, err := toHash("hash-table-ref", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	v, ok := ht.Get(args[1])
-	if !ok {
-		if len(args) == 3 {
-			return args[2], nil
-		}
-		return nil, fmt.Errorf("hash-table-ref: key %s not found", args[1].String())
-	}
-
-	return v, nil
-}
-
-func builtinHashTableSet(args []Expr) (Expr, error) {
-	if err := checkArity("hash-table-set!", args, 3); err != nil {
-		return nil, err
-	}
-
-	ht, err := toHash("hash-table-set!", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	ht.Set(args[1], args[2])
-
-	return Void(), nil
-}
-
-func builtinHashTableDelete(args []Expr) (Expr, error) {
-	if err := checkArity("hash-table-delete!", args, 2); err != nil {
-		return nil, err
-	}
-
-	ht, err := toHash("hash-table-delete!", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	ht.Delete(args[1])
-
-	return Void(), nil
-}
-
-func builtinHashTableContains(args []Expr) (Expr, error) {
-	if err := checkArity("hash-table-contains?", args, 2); err != nil {
-		return nil, err
-	}
-
-	ht, err := toHash("hash-table-contains?", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	_, ok := ht.Get(args[1])
-
-	return boolean(ok), nil
-}
-
-func builtinHashTableSize(args []Expr) (Expr, error) {
-	if err := checkArity("hash-table-size", args, 1); err != nil {
-		return nil, err
-	}
-
-	ht, err := toHash("hash-table-size", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	return num(float64(ht.Size())), nil
-}
-
-func builtinHashTableKeys(args []Expr) (Expr, error) {
-	if err := checkArity("hash-table-keys", args, 1); err != nil {
-		return nil, err
-	}
-
-	ht, err := toHash("hash-table-keys", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	elems := make([]Expr, len(ht.order))
-
-	for i, sk := range ht.order {
-		elems[i] = ht.keys[sk]
-	}
-
-	return &ListExpr{elements: elems}, nil
-}
-
-func builtinHashTableValues(args []Expr) (Expr, error) {
-	if err := checkArity("hash-table-values", args, 1); err != nil {
-		return nil, err
-	}
-
-	ht, err := toHash("hash-table-values", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	elems := make([]Expr, len(ht.order))
-
-	for i, sk := range ht.order {
-		elems[i] = ht.data[sk]
-	}
-
-	return &ListExpr{elements: elems}, nil
-}
-
-func builtinHashTableToAlist(args []Expr) (Expr, error) {
-	if err := checkArity("hash-table->alist", args, 1); err != nil {
-		return nil, err
-	}
-
-	ht, err := toHash("hash-table->alist", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	elems := make([]Expr, len(ht.order))
-
-	for i, sk := range ht.order {
-		elems[i] = &ListExpr{elements: []Expr{ht.keys[sk], ht.data[sk]}}
-	}
-
-	return &ListExpr{elements: elems}, nil
-}
-
-func builtinAlistToHashTable(args []Expr) (Expr, error) {
-	if err := checkArity("alist->hash-table", args, 1); err != nil {
-		return nil, err
-	}
-
-	lst, err := toList("alist->hash-table", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	ht := newHashTable(Token{})
-
-	for _, el := range lst.elements {
-		pair, ok := el.(*ListExpr)
-		if !ok || len(pair.elements) != 2 {
-			return nil, fmt.Errorf("alist->hash-table: each element must be a (key value) list, got %s", el.String())
-		}
-
-		ht.Set(pair.elements[0], pair.elements[1])
-	}
-
-	return ht, nil
-}
-
-func builtinHashTableCopy(args []Expr) (Expr, error) {
-	if err := checkArity("hash-table-copy", args, 1); err != nil {
-		return nil, err
-	}
-
-	ht, err := toHash("hash-table-copy", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	cp := newHashTable(ht.tok)
-
-	for _, sk := range ht.order {
-		cp.Set(ht.keys[sk], ht.data[sk])
-	}
-
-	return cp, nil
 }
