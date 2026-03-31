@@ -163,6 +163,7 @@ func toSym(name string, e Expr) (string, error) {
 
 func num(v float64) *NumberExpr { return &NumberExpr{val: v} }
 func boolean(v bool) *BoolExpr  { return &BoolExpr{val: v} }
+func str(v string) *StringExpr  { return &StringExpr{val: v} }
 
 func builtinAdd(args []Expr) (Expr, error) {
 	sum := 0.0
