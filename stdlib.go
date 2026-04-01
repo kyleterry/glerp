@@ -43,6 +43,7 @@ func StandardLibraries() []Library {
 	return []Library{
 		{Prefix: "scheme", FS: schemeFS},
 		{Prefix: "go/time", Builtins: timeBuiltins()},
+		{Prefix: "go/net/http", Builtins: netHTTPBuiltins()},
 	}
 }
 
