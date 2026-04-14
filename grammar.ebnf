@@ -32,25 +32,30 @@ symbol_char = letter | digit | "!" | "?" | "-" | "_" | "+"
             | "*" | "/" | "<" | ">" | "=" | "." | ":" | "@"
             | "~" | "^" | "&" | "%" ;
 
-(* lists and vectors *)
+(* delimiters *)
 
-list        = ( "(" | "[" ) , { expression } , ( ")" | "]" ) ;
+l_delim     = "(" | "[" ;
+r_delim     = ")" | "]" ;
+
+(* lists, vectors, and hash tables *)
+
+list        = l_delim , { expression } , [ "." , expression ] , r_delim ;
 vector      = "#(" , { expression } , ")" ;
 hash_table  = "{" , { expression , expression } , "}" ;
 
 (* quoting *)
 
 quoted      = "'" , expression
-            | "(", "quote" , expression , ")" ;
+            | l_delim , "quote" , expression , r_delim ;
 
 quasiquoted = "`" , expression
-            | "(" , "quasiquote" , expression , ")" ;
+            | l_delim , "quasiquote" , expression , r_delim ;
 
 unquoted    = "," , expression
-            | "(" , "unquote" , expression , ")" ;
+            | l_delim , "unquote" , expression , r_delim ;
 
 splice      = ",@" , expression
-            | "(" , "unquote-splicing" , expression , ")" ;
+            | l_delim , "unquote-splicing" , expression , r_delim ;
 
 (* syntax shorthands *)
 
@@ -70,97 +75,96 @@ comment     = ";" , { char } ;
 
 (* special forms *)
 
-define      = "(" , "define" , symbol , expression , ")"
-            | "(" , "define" , "(" , symbol , params , ")" , body , ")" ;
+define      = l_delim , "define" , symbol , expression , r_delim
+            | l_delim , "define" , l_delim , symbol , params , r_delim , body , r_delim ;
 
-lambda      = "(" , "lambda" , "(" , params , ")" , body , ")" ;
+lambda      = l_delim , "lambda" , ( symbol | l_delim , params , r_delim ) , body , r_delim ;
 
 params      = { symbol } , [ "." , symbol ] ;
 body        = expression , { expression } ;
 
-set_bang    = "(" , "set!" , symbol , expression , ")" ;
+set_bang    = l_delim , "set!" , symbol , expression , r_delim ;
 
-if_form     = "(" , "if" , expression , expression , [ expression ] , ")" ;
+if_form     = l_delim , "if" , expression , expression , [ expression ] , r_delim ;
 
-cond        = "(" , "cond" , { cond_clause } , ")" ;
-cond_clause = "(" , expression , body , ")"
-            | "(" , "else" , body , ")" ;
+cond        = l_delim , "cond" , { cond_clause } , r_delim ;
+cond_clause = l_delim , expression , body , r_delim
+            | l_delim , "else" , body , r_delim ;
 
-case_form   = "(" , "case" , expression , { case_clause } , ")" ;
-case_clause = "(" , "(" , { literal } , ")" , body , ")"
-            | "(" , "else" , body , ")" ;
+case_form   = l_delim , "case" , expression , { case_clause } , r_delim ;
+case_clause = l_delim , l_delim , { expression } , r_delim , body , r_delim
+            | l_delim , "else" , body , r_delim ;
 
-let         = "(" , "let"  , "(" , { binding } , ")" , body , ")" ;
-let_star    = "(" , "let*" , "(" , { binding } , ")" , body , ")" ;
-binding     = "(" , symbol , expression , ")" ;
+let         = l_delim , ( "let" | "let*" ) , l_delim , { binding } , r_delim , body , r_delim ;
+binding     = l_delim , symbol , expression , r_delim ;
 
-begin       = "(" , "begin" , { expression } , ")" ;
+begin       = l_delim , "begin" , { expression } , r_delim ;
 
-and_form    = "(" , "and" , { expression } , ")" ;
-or_form     = "(" , "or"  , { expression } , ")" ;
+and_form    = l_delim , "and" , { expression } , r_delim ;
+or_form     = l_delim , "or"  , { expression } , r_delim ;
 
-do_form     = "(" , "do"
-                , "(" , { do_binding } , ")"
-                , "(" , expression , { expression } , ")"
+do_form     = l_delim , "do"
+                , l_delim , { do_binding } , r_delim
+                , l_delim , expression , { expression } , r_delim
                 , { expression }
-              , ")" ;
-do_binding  = "(" , symbol , expression , expression , ")" ;
+              , r_delim ;
+do_binding  = l_delim , symbol , expression , expression , r_delim ;
 
-define_values = "(" , "define-values" , "(" , { symbol } , ")" , expression , ")" ;
+define_values = l_delim , "define-values" , l_delim , { symbol } , r_delim , expression , r_delim ;
 
 (* macros: syntax-rules *)
 
-define_syntax = "(" , "define-syntax" , symbol , ( syntax_rules | transformer ) , ")" ;
+define_syntax = l_delim , "define-syntax" , symbol , ( syntax_rules | transformer ) , r_delim ;
 
-syntax_rules  = "(" , "syntax-rules" , "(" , { symbol } , ")"
-                  , { "(" , pattern , template , ")" }
-                , ")" ;
+syntax_rules  = l_delim , "syntax-rules" , l_delim , { symbol } , r_delim
+                  , { l_delim , pattern , template , r_delim }
+                , r_delim ;
 
 pattern       = expression ;
 template      = expression ;
 
 (* macros: syntax-case *)
 
-transformer   = "(" , "lambda" , "(" , symbol , ")" , body , ")" ;
+transformer   = l_delim , "lambda" , l_delim , symbol , r_delim , body , r_delim ;
 
-syntax_case   = "(" , "syntax-case" , expression , "(" , { symbol } , ")"
+syntax_case   = l_delim , "syntax-case" , expression , l_delim , { symbol } , r_delim
                   , { syntax_clause }
-                , ")" ;
-syntax_clause = "[" , pattern , body , "]"
-              | "[" , pattern , fender , body , "]" ;
+                , r_delim ;
+syntax_clause = l_delim , pattern , body , r_delim
+              | l_delim , pattern , fender , body , r_delim ;
 fender        = expression ;
 
-syntax_form   = "(" , "syntax" , template , ")"
+syntax_form   = l_delim , "syntax" , template , r_delim
               | "#'" , template ;
 
-quasisyntax_form = "(" , "quasisyntax" , qs_template , ")"
+quasisyntax_form = l_delim , "quasisyntax" , qs_template , r_delim
                  | "#`" , qs_template ;
 qs_template      = qs_atom | qs_list ;
 qs_atom          = expression ;
-qs_list          = "(" , { qs_element } , ")" ;
+qs_list          = l_delim , { qs_element } , r_delim ;
 qs_element       = unsyntax_form | unsyntax_splice_form | qs_template ;
 
-unsyntax_form    = "(" , "unsyntax" , expression , ")"
+unsyntax_form    = l_delim , "unsyntax" , expression , r_delim
                  | "#," , expression ;
-unsyntax_splice_form = "(" , "unsyntax-splicing" , expression , ")"
+unsyntax_splice_form = l_delim , "unsyntax-splicing" , expression , r_delim
                      | "#,@" , expression ;
 
-with_syntax   = "(" , "with-syntax" , "(" , { ws_binding } , ")" , body , ")" ;
-ws_binding    = "[" , pattern , expression , "]" ;
+with_syntax   = l_delim , "with-syntax" , l_delim , { ws_binding } , r_delim , body , r_delim ;
+ws_binding    = l_delim , pattern , expression , r_delim ;
 
 (* libraries *)
 
-import_form = "(" , "import" , { import_spec } , ")" ;
+import_form = l_delim , "import" , { import_spec } , r_delim ;
 import_spec = lib_path
-            | "(" , "only" , lib_path , symbol , { symbol } , ")" ;
+            | l_delim , "only" , lib_path , symbol , { symbol } , r_delim ;
 lib_path    = ":" , symbol , "/" , symbol , { "/" , symbol }
             | "./" , symbol , { "/" , symbol } ;
 
-export_form = "(" , "export" , ( "#t" | symbol , { symbol } ) , ")" ;
+export_form = l_delim , "export" , ( "#t" | symbol , { symbol } ) , r_delim ;
 
 (* procedure call *)
 
-call        = "(" , expression , { expression } , ")" ;
+call        = l_delim , expression , { expression } , r_delim ;
 
 (* terminals *)
 
