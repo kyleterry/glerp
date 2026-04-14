@@ -93,37 +93,97 @@ func TestStdlibImport(t *testing.T) {
 		{"math clamp in", "(import :scheme/math) (clamp 5 0 10)", "5"},
 
 		// :scheme/time
-		{"time make-time year", "(import :scheme/time) (time-year (make-time 2024 3 15 12 0 0))", "2024"},
-		{"time make-time month", "(import :scheme/time) (time-month (make-time 2024 3 15 12 0 0))", "3"},
-		{"time make-time day", "(import :scheme/time) (time-day (make-time 2024 3 15 12 0 0))", "15"},
-		{"time make-time hour", "(import :scheme/time) (time-hour (make-time 2024 3 15 12 30 45))", "12"},
-		{"time make-time minute", "(import :scheme/time) (time-minute (make-time 2024 3 15 12 30 45))", "30"},
-		{"time make-time second", "(import :scheme/time) (time-second (make-time 2024 3 15 12 30 45))", "45"},
+		{
+			"time make-time year",
+			"(import :scheme/time) (time-year (make-time 2024 3 15 12 0 0))",
+			"2024",
+		},
+		{
+			"time make-time month",
+			"(import :scheme/time) (time-month (make-time 2024 3 15 12 0 0))",
+			"3",
+		},
+		{
+			"time make-time day",
+			"(import :scheme/time) (time-day (make-time 2024 3 15 12 0 0))",
+			"15",
+		},
+		{
+			"time make-time hour",
+			"(import :scheme/time) (time-hour (make-time 2024 3 15 12 30 45))",
+			"12",
+		},
+		{
+			"time make-time minute",
+			"(import :scheme/time) (time-minute (make-time 2024 3 15 12 30 45))",
+			"30",
+		},
+		{
+			"time make-time second",
+			"(import :scheme/time) (time-second (make-time 2024 3 15 12 30 45))",
+			"45",
+		},
 		{"time weekday", "(import :scheme/time) (time-weekday (make-time 2024 3 15 0 0 0))", "5"},
-		{"time weekday-name", `(import :scheme/time) (time-weekday-name (make-time 2024 3 15 0 0 0))`, `"Friday"`},
-		{"time month-name", `(import :scheme/time) (time-month-name (make-time 2024 3 15 0 0 0))`, `"March"`},
+		{
+			"time weekday-name",
+			`(import :scheme/time) (time-weekday-name (make-time 2024 3 15 0 0 0))`,
+			`"Friday"`,
+		},
+		{
+			"time month-name",
+			`(import :scheme/time) (time-month-name (make-time 2024 3 15 0 0 0))`,
+			`"March"`,
+		},
 		{"time duration seconds", "(import :scheme/time) (seconds 5)", "5"},
 		{"time duration minutes", "(import :scheme/time) (minutes 2)", "120"},
 		{"time duration hours", "(import :scheme/time) (hours 1)", "3600"},
 		{"time duration days", "(import :scheme/time) (days 1)", "86400"},
 		{"time duration weeks", "(import :scheme/time) (weeks 1)", "604800"},
-		{"time time-add", "(import :scheme/time) (let ((t (make-time 2024 1 1 0 0 0))) (time-year (time-add t (days 366))))", "2025"},
-		{"time time-difference", "(import :scheme/time) (time-difference (seconds 100) (seconds 30))", "70"},
+		{
+			"time time-add",
+			"(import :scheme/time) (let ((t (make-time 2024 1 1 0 0 0))) (time-year (time-add t (days 366))))",
+			"2025",
+		},
+		{
+			"time time-difference",
+			"(import :scheme/time) (time-difference (seconds 100) (seconds 30))",
+			"70",
+		},
 		{"time time<?", "(import :scheme/time) (time<? (seconds 1) (seconds 2))", "#t"},
 		{"time time>?", "(import :scheme/time) (time>? (seconds 2) (seconds 1))", "#t"},
 		{"time time=?", "(import :scheme/time) (time=? (seconds 5) (seconds 5))", "#t"},
 		{"time time<=?", "(import :scheme/time) (time<=? (seconds 3) (seconds 3))", "#t"},
 		{"time time>=?", "(import :scheme/time) (time>=? (seconds 4) (seconds 3))", "#t"},
-		{"time time->string", `(import :scheme/time) (time->string (make-time 2024 3 15 12 0 0))`, `"2024-03-15T12:00:00Z"`},
-		{"time string->time round-trip", `(import :scheme/time) (time-day (string->time "2024-03-15T12:00:00Z"))`, "15"},
-		{"time time->string/fmt date", `(import :scheme/time) (time->string/fmt (make-time 2024 3 15 0 0 0) time-format/date)`, `"2024-03-15"`},
-		{"time time-components length", `(import :scheme/time) (length (time-components (make-time 2024 1 1 0 0 0)))`, "7"},
+		{
+			"time time->string",
+			`(import :scheme/time) (time->string (make-time 2024 3 15 12 0 0))`,
+			`"2024-03-15T12:00:00Z"`,
+		},
+		{
+			"time string->time round-trip",
+			`(import :scheme/time) (time-day (string->time "2024-03-15T12:00:00Z"))`,
+			"15",
+		},
+		{
+			"time time->string/fmt date",
+			`(import :scheme/time) (time->string/fmt (make-time 2024 3 15 0 0 0) time-format/date)`,
+			`"2024-03-15"`,
+		},
+		{
+			"time time-components length",
+			`(import :scheme/time) (length (time-components (make-time 2024 1 1 0 0 0)))`,
+			"7",
+		},
 
 		// multiple specs in one import
 		{"multi import", "(import :scheme/list :scheme/math) (cube (length '(a b c)))", "27"},
 
 		// (only ...) selective import
-		{"import only", "(import (only :core/list map filter)) (map (lambda (x) (* x x)) '(1 2 3))", "(1 4 9)"},
+		{
+			"import only",
+			"(import (only :core/list map filter)) (map (lambda (x) (* x x)) '(1 2 3))",
+			"(1 4 9)",
+		},
 		{"import only excludes others", `
 			(import (only :scheme/math cube))
 			(define average "not imported")

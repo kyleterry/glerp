@@ -1,0 +1,11 @@
+(import :scheme/math)
+
+(check (= (+ 1 2) 3))
+(check (= (* 2 3 4) 24))
+(check (= (- 10 3) 7))
+(check (= (/ 10 2) 5))
+(check (= (abs -5) 5))
+(check (= (max 1 2) 2))
+(check (= (min 1 2) 1))
+(check (= (square 4) 16))
+(check (= (cube 3) 27))

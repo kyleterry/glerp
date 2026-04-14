@@ -79,7 +79,10 @@ func (p *Parser) parseExpr() (Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "unquote-splicing"}, val: "unquote-splicing"}
+		sym := &SymbolExpr{
+			tok: Token{Kind: Symbol, Value: "unquote-splicing"},
+			val: "unquote-splicing",
+		}
 		return &ListExpr{tok: tok, elements: []Expr{sym, inner}}, nil
 
 	case HashQuote:
@@ -119,7 +122,10 @@ func (p *Parser) parseExpr() (Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "unsyntax-splicing"}, val: "unsyntax-splicing"}
+		sym := &SymbolExpr{
+			tok: Token{Kind: Symbol, Value: "unsyntax-splicing"},
+			val: "unsyntax-splicing",
+		}
 		return &ListExpr{tok: tok, elements: []Expr{sym, inner}}, nil
 
 	case Number:
@@ -173,6 +179,7 @@ func (p *Parser) parseList() (Expr, error) {
 	}
 
 	var elements []Expr
+	var dotted Expr
 
 	for {
 		peek := p.lexer.PeekToken()
@@ -183,14 +190,49 @@ func (p *Parser) parseList() (Expr, error) {
 		if peek.Kind == EOF {
 			return nil, fmt.Errorf("unexpected EOF: unclosed '%s'", open.Value)
 		}
+
 		expr, err := p.parseExpr()
 		if err != nil {
 			return nil, err
 		}
+
+		if sym, ok := expr.(*SymbolExpr); ok && sym.val == "." {
+			// Dotted list
+			rest, err := p.parseExpr()
+			if err != nil {
+				return nil, err
+			}
+			dotted = rest
+
+			// Next must be close
+			next := p.lexer.NextToken()
+			if next.Kind != close {
+				return nil, fmt.Errorf(
+					"expected '%s' after dotted list rest, got %s",
+					close,
+					next.Value,
+				)
+			}
+			break
+		}
+
 		elements = append(elements, expr)
 	}
 
-	return &ListExpr{tok: open, elements: elements}, nil
+	var res Expr = Null() // Empty list
+	if dotted != nil {
+		res = dotted
+	}
+
+	for i := len(elements) - 1; i >= 0; i-- {
+		res = &Pair{
+			tok: open,
+			car: elements[i],
+			cdr: res,
+		}
+	}
+
+	return res, nil
 }
 
 func (p *Parser) parseVector() (Expr, error) {

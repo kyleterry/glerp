@@ -50,11 +50,19 @@ type AppConfig struct {
 // subform extracts the key name and value expressions from a (key val...)
 // sub-form. Used by forms that accept keyword-style children.
 func subform(e glerp.Expr) (key string, vals []glerp.Expr, err error) {
-	lst, ok := e.(*glerp.ListExpr)
-	if !ok {
+	var elems []glerp.Expr
+
+	if p, ok := e.(*glerp.Pair); ok {
+		elems, err = p.ToSlice()
+		if err != nil {
+			return "", nil, fmt.Errorf("subform: %w", err)
+		}
+	} else if lst, ok := e.(*glerp.ListExpr); ok {
+		elems = lst.Elements()
+	} else {
 		return "", nil, fmt.Errorf("expected (key value...), got %s", e.String())
 	}
-	elems := lst.Elements()
+
 	if len(elems) == 0 {
 		return "", nil, fmt.Errorf("empty sub-form")
 	}
@@ -127,33 +135,36 @@ func registerForms(env *glerp.Environment, cfg *AppConfig) {
 	})
 
 	// (database (key value) ...) — populates cfg.DB
-	env.RegisterForm("database", func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
-		for _, arg := range args {
-			key, vals, err := subform(arg)
-			if err != nil {
-				return nil, fmt.Errorf("database: %w", err)
+	env.RegisterForm(
+		"database",
+		func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
+			for _, arg := range args {
+				key, vals, err := subform(arg)
+				if err != nil {
+					return nil, fmt.Errorf("database: %w", err)
+				}
+				if len(vals) != 1 {
+					return nil, fmt.Errorf("database/%s: expected exactly 1 value", key)
+				}
+				switch key {
+				case "host":
+					cfg.DB.Host, err = evalStr(vals[0], env)
+				case "port":
+					cfg.DB.Port, err = evalInt(vals[0], env)
+				case "name":
+					cfg.DB.Name, err = evalStr(vals[0], env)
+				case "pool-size":
+					cfg.DB.PoolSize, err = evalInt(vals[0], env)
+				default:
+					return nil, fmt.Errorf("database: unknown key %q", key)
+				}
+				if err != nil {
+					return nil, fmt.Errorf("database/%s: %w", key, err)
+				}
 			}
-			if len(vals) != 1 {
-				return nil, fmt.Errorf("database/%s: expected exactly 1 value", key)
-			}
-			switch key {
-			case "host":
-				cfg.DB.Host, err = evalStr(vals[0], env)
-			case "port":
-				cfg.DB.Port, err = evalInt(vals[0], env)
-			case "name":
-				cfg.DB.Name, err = evalStr(vals[0], env)
-			case "pool-size":
-				cfg.DB.PoolSize, err = evalInt(vals[0], env)
-			default:
-				return nil, fmt.Errorf("database: unknown key %q", key)
-			}
-			if err != nil {
-				return nil, fmt.Errorf("database/%s: %w", key, err)
-			}
-		}
-		return glerp.Void(), nil
-	})
+			return glerp.Void(), nil
+		},
+	)
 
 	// HTTP method forms: (GET path handler), (POST path handler), …
 	// Each one appends a Route to cfg.Routes.
@@ -188,17 +199,20 @@ func registerForms(env *glerp.Environment, cfg *AppConfig) {
 
 	// (features name ...) — each argument is a bare symbol used as the
 	// feature name directly, without environment lookup.
-	env.RegisterForm("features", func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
-		for _, arg := range args {
-			argVal, err := arg.Eval(env)
-			if err != nil {
-				return nil, err
-			}
+	env.RegisterForm(
+		"features",
+		func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
+			for _, arg := range args {
+				argVal, err := arg.Eval(env)
+				if err != nil {
+					return nil, err
+				}
 
-			cfg.Features = append(cfg.Features, argVal.String())
-		}
-		return glerp.Void(), nil
-	})
+				cfg.Features = append(cfg.Features, argVal.String())
+			}
+			return glerp.Void(), nil
+		},
+	)
 
 	// (app name version sub-form...) — top-level DSL entry point.
 	// Sets name/version then evaluates the sub-forms (server, database, …).
@@ -234,7 +248,11 @@ func printConfig(app *AppConfig) {
 	bar := strings.Repeat("─", width)
 
 	fmt.Printf("\n┌%s┐\n", bar)
-	fmt.Printf("│  %-*s│\n", width-2, fmt.Sprintf("%s  v%s", app.Server.AppName, app.Server.Version))
+	fmt.Printf(
+		"│  %-*s│\n",
+		width-2,
+		fmt.Sprintf("%s  v%s", app.Server.AppName, app.Server.Version),
+	)
 	fmt.Printf("└%s┘\n\n", bar)
 
 	fmt.Println("Server")

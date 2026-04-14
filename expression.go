@@ -107,8 +107,148 @@ func (e *SymbolExpr) Token() Token { return e.tok }
 // String returns the symbol name.
 func (e *SymbolExpr) String() string { return e.val }
 
+// Pair is a traditional Scheme cons cell with a car and a cdr.
+// Lists in glerp are represented as a chain of Pair objects, ending in a
+// null ListExpr (the empty list).
+type Pair struct {
+	tok Token
+	car Expr
+	cdr Expr
+}
+
+func (p *Pair) Eval(env *Environment) (Expr, error) {
+	// Procedure application or special form.
+	proc, err := p.car.Eval(env)
+	if err != nil {
+		return nil, fmt.Errorf("in procedure position: %w", err)
+	}
+
+	// Special forms
+	if f, ok := proc.(*FormExpr); ok {
+		var slice []Expr
+		if pair, ok := p.cdr.(*Pair); ok {
+			var err error
+			slice, err = pair.ToSlice()
+			if err != nil {
+				return nil, err
+			}
+		}
+		return f.fn(slice, env)
+	}
+
+	// Macros
+	if transformer, ok := proc.(*TransformerExpr); ok {
+		result, err := apply(transformer.proc, []Expr{p})
+		if err != nil {
+			return nil, err
+		}
+		return result.Eval(env)
+	}
+
+	if transformer, ok := proc.(*SyntaxRulesExpr); ok {
+		expanded, err := transformer.expand(p)
+		if err != nil {
+			return nil, err
+		}
+		return expanded.Eval(env)
+	}
+
+	// Procedure application: evaluate arguments
+	var args []Expr
+	curr := p.cdr
+	for {
+		switch l := curr.(type) {
+		case *Pair:
+			val, err := l.car.Eval(env)
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, val)
+			curr = l.cdr
+		case *ListExpr:
+			if len(l.elements) == 0 {
+				goto apply
+			}
+			return nil, fmt.Errorf("dotted list in procedure application")
+		default:
+			return nil, fmt.Errorf("dotted list in procedure application")
+		}
+	}
+
+apply:
+	return apply(proc, args)
+}
+
+func (p *Pair) Token() Token { return p.tok }
+
+func (p *Pair) String() string {
+	var sb strings.Builder
+	sb.WriteString("(")
+	curr := p
+	for {
+		sb.WriteString(curr.car.String())
+		switch next := curr.cdr.(type) {
+		case *Pair:
+			sb.WriteString(" ")
+			curr = next
+		case *ListExpr:
+			if len(next.elements) == 0 {
+				sb.WriteString(")")
+				return sb.String()
+			}
+			// Should not happen with proper list structure but handle anyway.
+			sb.WriteString(" . ")
+			sb.WriteString(next.String())
+			sb.WriteString(")")
+			return sb.String()
+		default:
+			sb.WriteString(" . ")
+			sb.WriteString(next.String())
+			sb.WriteString(")")
+			return sb.String()
+		}
+	}
+}
+
+func (p *Pair) Car() Expr     { return p.car }
+func (p *Pair) Cdr() Expr     { return p.cdr }
+func (p *Pair) SetCar(e Expr) { p.car = e }
+func (p *Pair) SetCdr(e Expr) { p.cdr = e }
+
+// ToSlice converts a proper list (chain of pairs ending in '()) to a slice.
+// Returns an error if the list is improper (dotted).
+func (p *Pair) ToSlice() ([]Expr, error) {
+	var res []Expr
+	var curr Expr = p
+	for {
+		switch l := curr.(type) {
+		case *Pair:
+			res = append(res, l.car)
+			curr = l.cdr
+		case *ListExpr:
+			if l == Null() {
+				return res, nil
+			}
+			return nil, fmt.Errorf("dotted list cannot be converted to slice")
+		default:
+			return nil, fmt.Errorf("dotted list cannot be converted to slice")
+		}
+	}
+}
+
+var nullSingleton = &ListExpr{}
+
+// Null returns the empty list singleton.
+func Null() *ListExpr {
+	return nullSingleton
+}
+
 // ListExpr is a parenthesized s-expression. Evaluation dispatches on the head:
 // special forms are handled directly; otherwise it is a procedure application.
+//
+// In glerp, ListExpr now primarily serves as a bridge for special forms and
+// as the representation for the empty list. Chains of pairs are converted to
+// ListExpr during evaluation to reuse the slice-based dispatch logic.
 type ListExpr struct {
 	tok      Token
 	elements []Expr
@@ -406,7 +546,8 @@ func apply(proc Expr, args []Expr) (Expr, error) {
 		}
 
 		if p.rest != "" {
-			child.Bind(p.rest, &ListExpr{elements: args[len(p.params):]})
+			restList, _ := builtinList(args[len(p.params):])
+			child.Bind(p.rest, restList)
 		}
 
 		return evalBody(p.body, child)
@@ -436,18 +577,14 @@ func evalDefine(args []Expr, env *Environment) (Expr, error) {
 
 		return Void(), nil
 
-	case *ListExpr:
-		// (define (name params...) body...) — sugar for (define name (lambda ...))
-		if len(target.elements) == 0 {
-			return nil, fmt.Errorf("define: missing function name")
-		}
-
-		nameSym, ok := target.elements[0].(*SymbolExpr)
+	case *Pair:
+		// (define (name params...) body...) — sugar for (define name (lambda (params...) body...))
+		nameSym, ok := target.car.(*SymbolExpr)
 		if !ok {
 			return nil, fmt.Errorf("define: function name must be a symbol")
 		}
 
-		lambda, err := makeLambda(target.elements[1:], args[1:], env)
+		lambda, err := makeLambda(target.cdr, args[1:], env)
 		if err != nil {
 			return nil, err
 		}
@@ -456,7 +593,7 @@ func evalDefine(args []Expr, env *Environment) (Expr, error) {
 
 		return Void(), nil
 	default:
-		return nil, fmt.Errorf("define: target must be a symbol or list, got %T", args[0])
+		return nil, fmt.Errorf("define: target must be a symbol or pair, got %T", args[0])
 	}
 }
 
@@ -465,41 +602,36 @@ func evalLambda(args []Expr, env *Environment) (Expr, error) {
 		return nil, fmt.Errorf("lambda: requires parameter list and body")
 	}
 
-	paramList, ok := args[0].(*ListExpr)
-	if !ok {
-		return nil, fmt.Errorf("lambda: parameters must be a list")
-	}
-
-	return makeLambda(paramList.elements, args[1:], env)
+	return makeLambda(args[0], args[1:], env)
 }
 
-func makeLambda(paramExprs []Expr, body []Expr, env *Environment) (*LambdaExpr, error) {
+func makeLambda(paramsExpr Expr, body []Expr, env *Environment) (*LambdaExpr, error) {
 	var params []string
 	var rest string
 
-	for i, p := range paramExprs {
-		sym, ok := p.(*SymbolExpr)
-		if !ok {
-			return nil, fmt.Errorf("lambda: parameter must be a symbol, got %T", p)
-		}
-
-		if sym.val == "." {
-			if i != len(paramExprs)-2 {
-				return nil, fmt.Errorf("lambda: '.' must be followed by exactly one rest parameter")
-			}
-
-			restSym, ok := paramExprs[i+1].(*SymbolExpr)
+	curr := paramsExpr
+	for {
+		switch p := curr.(type) {
+		case *Pair:
+			sym, ok := p.car.(*SymbolExpr)
 			if !ok {
-				return nil, fmt.Errorf("lambda: rest parameter must be a symbol")
+				return nil, fmt.Errorf("lambda: parameter must be a symbol, got %T", p.car)
 			}
-
-			rest = restSym.val
-			break
+			params = append(params, sym.val)
+			curr = p.cdr
+		case *SymbolExpr:
+			rest = p.val
+			goto done
+		case *ListExpr:
+			if len(p.elements) == 0 {
+				goto done
+			}
+			return nil, fmt.Errorf("lambda: invalid parameter list")
+		default:
+			return nil, fmt.Errorf("lambda: invalid parameter list")
 		}
-
-		params = append(params, sym.val)
 	}
-
+done:
 	return &LambdaExpr{params: params, rest: rest, body: body, env: env}, nil
 }
 
@@ -531,20 +663,20 @@ func evalLetBindings(name string, args []Expr, env *Environment, sequential bool
 		return nil, fmt.Errorf("%s: requires bindings and body", name)
 	}
 
-	bindings, ok := args[0].(*ListExpr)
-	if !ok {
-		return nil, fmt.Errorf("%s: bindings must be a list", name)
+	bindingSlice, err := toSlice(name, args[0])
+	if err != nil {
+		return nil, err
 	}
 
 	child := env.Extend()
 
-	for _, b := range bindings.elements {
-		pair, ok := b.(*ListExpr)
-		if !ok || len(pair.elements) != 2 {
+	for _, b := range bindingSlice {
+		pairSlice, err := toSlice(name, b)
+		if err != nil || len(pairSlice) != 2 {
 			return nil, fmt.Errorf("%s: each binding must be (name value)", name)
 		}
 
-		sym, ok := pair.elements[0].(*SymbolExpr)
+		sym, ok := pairSlice[0].(*SymbolExpr)
 		if !ok {
 			return nil, fmt.Errorf("%s: binding name must be a symbol", name)
 		}
@@ -554,7 +686,7 @@ func evalLetBindings(name string, args []Expr, env *Environment, sequential bool
 			evalEnv = child
 		}
 
-		val, err := pair.elements[1].Eval(evalEnv)
+		val, err := pairSlice[1].Eval(evalEnv)
 		if err != nil {
 			return nil, err
 		}
@@ -590,17 +722,17 @@ func evalQuasiquote(args []Expr, env *Environment) (Expr, error) {
 // isTagged reports whether expr is a list whose first element is a symbol with
 // the given name, returning the remaining elements if so.
 func isTagged(expr Expr, name string) ([]Expr, bool) {
-	list, ok := expr.(*ListExpr)
-	if !ok || len(list.elements) == 0 {
+	elements, err := toSlice(name, expr)
+	if err != nil || len(elements) == 0 {
 		return nil, false
 	}
 
-	sym, ok := list.elements[0].(*SymbolExpr)
+	sym, ok := elements[0].(*SymbolExpr)
 	if !ok || sym.val != name {
 		return nil, false
 	}
 
-	return list.elements[1:], true
+	return elements[1:], true
 }
 
 // expandQQ recursively expands a quasiquote template at the given nesting
@@ -665,17 +797,32 @@ func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
 		return &VectorExpr{tok: vec.tok, elements: result}, nil
 	}
 
-	list, ok := expr.(*ListExpr)
-	if !ok {
+	elements, err := toSlice("quasiquote", expr)
+	if err != nil {
+		// Improper list (dotted)
+		if p, ok := expr.(*Pair); ok {
+			car, err := expandQQ(p.car, depth, env)
+			if err != nil {
+				return nil, err
+			}
+			cdr, err := expandQQ(p.cdr, depth, env)
+			if err != nil {
+				return nil, err
+			}
+			return &Pair{tok: p.tok, car: car, cdr: cdr}, nil
+		}
 		return expr, nil
 	}
 
 	var result []Expr
 
-	for _, el := range list.elements {
+	for _, el := range elements {
 		if spliceArgs, ok := isTagged(el, "unquote-splicing"); ok {
 			if len(spliceArgs) != 1 {
-				return nil, fmt.Errorf("unquote-splicing: expected 1 argument, got %d", len(spliceArgs))
+				return nil, fmt.Errorf(
+					"unquote-splicing: expected 1 argument, got %d",
+					len(spliceArgs),
+				)
 			}
 
 			if depth == 0 {
@@ -684,12 +831,15 @@ func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
 					return nil, err
 				}
 
-				spliceList, ok := val.(*ListExpr)
-				if !ok {
-					return nil, fmt.Errorf("unquote-splicing: expected a list, got %s", val.String())
+				spliceSlice, err := toSlice("unquote-splicing", val)
+				if err != nil {
+					return nil, fmt.Errorf(
+						"unquote-splicing: expected a list, got %s",
+						val.String(),
+					)
 				}
 
-				result = append(result, spliceList.elements...)
+				result = append(result, spliceSlice...)
 				continue
 			}
 
@@ -698,8 +848,12 @@ func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
 				return nil, err
 			}
 
-			sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "unquote-splicing"}, val: "unquote-splicing"}
-			result = append(result, &ListExpr{tok: el.Token(), elements: []Expr{sym, expanded}})
+			sym := &SymbolExpr{
+				tok: Token{Kind: Symbol, Value: "unquote-splicing"},
+				val: "unquote-splicing",
+			}
+			unquoteList, _ := builtinList([]Expr{sym, expanded})
+			result = append(result, unquoteList)
 			continue
 		}
 
@@ -711,7 +865,7 @@ func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
 		result = append(result, expanded)
 	}
 
-	return &ListExpr{tok: list.tok, elements: result}, nil
+	return builtinList(result)
 }
 
 func evalSetBang(args []Expr, env *Environment) (Expr, error) {
@@ -755,17 +909,20 @@ func evalBody(exprs []Expr, env *Environment) (Expr, error) {
 // As a special case, a single-name list accepts any non-values result.
 func evalDefineValues(args []Expr, env *Environment) (Expr, error) {
 	if len(args) != 2 {
-		return nil, fmt.Errorf("define-values: expected name list and expression, got %d args", len(args))
+		return nil, fmt.Errorf(
+			"define-values: expected name list and expression, got %d args",
+			len(args),
+		)
 	}
 
-	nameList, ok := args[0].(*ListExpr)
-	if !ok {
-		return nil, fmt.Errorf("define-values: first argument must be a list of names")
+	nameSlice, err := toSlice("define-values", args[0])
+	if err != nil {
+		return nil, err
 	}
 
-	syms := make([]string, len(nameList.elements))
+	syms := make([]string, len(nameSlice))
 
-	for i, el := range nameList.elements {
+	for i, el := range nameSlice {
 		sym, ok := el.(*SymbolExpr)
 		if !ok {
 			return nil, fmt.Errorf("define-values: names must be symbols, got %s", el.String())
@@ -780,7 +937,11 @@ func evalDefineValues(args []Expr, env *Environment) (Expr, error) {
 
 	if mv, ok := result.(*ValuesExpr); ok {
 		if len(mv.vals) != len(syms) {
-			return nil, fmt.Errorf("define-values: expected %d values, got %d", len(syms), len(mv.vals))
+			return nil, fmt.Errorf(
+				"define-values: expected %d values, got %d",
+				len(syms),
+				len(mv.vals),
+			)
 		}
 
 		for i, name := range syms {
@@ -817,6 +978,10 @@ func eqv(a, b Expr) bool {
 	case *SymbolExpr:
 		y, ok := b.(*SymbolExpr)
 		return ok && x.val == y.val
+	case *Pair:
+		return a == b
+	case *ListExpr:
+		return a == b
 	case *VectorExpr:
 		return a == b
 	case *HashTableExpr:
@@ -840,24 +1005,27 @@ func evalCase(args []Expr, env *Environment) (Expr, error) {
 	}
 
 	for _, arg := range args[1:] {
-		clause, ok := arg.(*ListExpr)
-		if !ok || len(clause.elements) < 2 {
+		clauseSlice, err := toSlice("case", arg)
+		if err != nil || len(clauseSlice) < 2 {
 			return nil, fmt.Errorf("case: invalid clause %s", arg.String())
 		}
 
-		head := clause.elements[0]
-		body := clause.elements[1:]
+		head := clauseSlice[0]
+		body := clauseSlice[1:]
 
 		if sym, ok := head.(*SymbolExpr); ok && sym.val == "else" {
 			return evalBody(body, env)
 		}
 
-		datums, ok := head.(*ListExpr)
-		if !ok {
-			return nil, fmt.Errorf("case: clause head must be a datum list or else, got %s", head.String())
+		datumSlice, err := toSlice("case", head)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"case: clause head must be a datum list or else, got %s",
+				head.String(),
+			)
 		}
 
-		for _, datum := range datums.elements {
+		for _, datum := range datumSlice {
 			if eqv(key, datum) {
 				return evalBody(body, env)
 			}
@@ -876,13 +1044,13 @@ func evalBegin(args []Expr, env *Environment) (Expr, error) {
 
 func evalCond(args []Expr, env *Environment) (Expr, error) {
 	for _, arg := range args {
-		clause, ok := arg.(*ListExpr)
-		if !ok || len(clause.elements) < 2 {
+		clauseSlice, err := toSlice("cond", arg)
+		if err != nil || len(clauseSlice) < 2 {
 			return nil, fmt.Errorf("cond: invalid clause %s", arg.String())
 		}
 
-		test := clause.elements[0]
-		body := clause.elements[1:]
+		test := clauseSlice[0]
+		body := clauseSlice[1:]
 
 		if sym, ok := test.(*SymbolExpr); ok && sym.val == "else" {
 			return evalBody(body, env)
@@ -951,30 +1119,36 @@ func evalDo(args []Expr, env *Environment) (Expr, error) {
 		return nil, fmt.Errorf("do: requires variable specs and a termination clause")
 	}
 
-	varList, ok := args[0].(*ListExpr)
-	if !ok {
-		return nil, fmt.Errorf("do: first argument must be a list of variable specs")
+	varSlice, err := toSlice("do", args[0])
+	if err != nil {
+		return nil, err
 	}
 
 	type spec struct {
 		name string
 		step Expr // nil means no step — variable keeps its value
 	}
-	specs := make([]spec, len(varList.elements))
+	specs := make([]spec, len(varSlice))
 	loopEnv := env.Extend()
 
-	for i, el := range varList.elements {
-		clause, ok := el.(*ListExpr)
-		if !ok || len(clause.elements) < 2 || len(clause.elements) > 3 {
-			return nil, fmt.Errorf("do: variable spec must be (var init) or (var init step), got %s", el.String())
+	for i, el := range varSlice {
+		clauseSlice, err := toSlice("do", el)
+		if err != nil || len(clauseSlice) < 2 || len(clauseSlice) > 3 {
+			return nil, fmt.Errorf(
+				"do: variable spec must be (var init) or (var init step), got %s",
+				el.String(),
+			)
 		}
 
-		sym, ok := clause.elements[0].(*SymbolExpr)
+		sym, ok := clauseSlice[0].(*SymbolExpr)
 		if !ok {
-			return nil, fmt.Errorf("do: variable name must be a symbol, got %s", clause.elements[0].String())
+			return nil, fmt.Errorf(
+				"do: variable name must be a symbol, got %s",
+				clauseSlice[0].String(),
+			)
 		}
 
-		init, err := clause.elements[1].Eval(env)
+		init, err := clauseSlice[1].Eval(env)
 		if err != nil {
 			return nil, err
 		}
@@ -982,19 +1156,19 @@ func evalDo(args []Expr, env *Environment) (Expr, error) {
 		loopEnv.Bind(sym.val, init)
 
 		var step Expr
-		if len(clause.elements) == 3 {
-			step = clause.elements[2]
+		if len(clauseSlice) == 3 {
+			step = clauseSlice[2]
 		}
 
 		specs[i] = spec{name: sym.val, step: step}
 	}
 
-	term, ok := args[1].(*ListExpr)
-	if !ok || len(term.elements) == 0 {
+	termSlice, err := toSlice("do", args[1])
+	if err != nil || len(termSlice) == 0 {
 		return nil, fmt.Errorf("do: termination clause must be a non-empty list")
 	}
-	testExpr := term.elements[0]
-	resultExprs := term.elements[1:]
+	testExpr := termSlice[0]
+	resultExprs := termSlice[1:]
 
 	commands := args[2:]
 

@@ -72,7 +72,7 @@ func builtinTimeComponents(args []Expr) (Expr, error) {
 	nsec := int64((ts - float64(sec)) * 1e9)
 	t := time.Unix(sec, nsec).UTC()
 
-	elems := []Expr{
+	return builtinList([]Expr{
 		num(float64(t.Year())),
 		num(float64(t.Month())),
 		num(float64(t.Day())),
@@ -80,9 +80,7 @@ func builtinTimeComponents(args []Expr) (Expr, error) {
 		num(float64(t.Minute())),
 		num(float64(t.Second())),
 		num(float64(t.Weekday())),
-	}
-
-	return &ListExpr{elements: elems}, nil
+	})
 }
 
 // builtinTimeFormat formats a unix timestamp using a Go reference-time layout string.
