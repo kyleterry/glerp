@@ -60,7 +60,10 @@ func evalSyntaxCase(args []Expr, env *Environment) (Expr, error) {
 	for _, arg := range args[2:] {
 		clauseSlice, err := toSlice("syntax-case", arg)
 		if err != nil || len(clauseSlice) < 2 || len(clauseSlice) > 3 {
-			return nil, fmt.Errorf("syntax-case: clause must be [pattern body] or [pattern fender body], got %s", arg.String())
+			return nil, fmt.Errorf(
+				"syntax-case: clause must be [pattern body] or [pattern fender body], got %s",
+				arg.String(),
+			)
 		}
 
 		pattern := clauseSlice[0]
@@ -137,7 +140,10 @@ func evalWithSyntax(args []Expr, env *Environment) (Expr, error) {
 	for _, binding := range bindingSlice {
 		pairSlice, err := toSlice("with-syntax", binding)
 		if err != nil || len(pairSlice) != 2 {
-			return nil, fmt.Errorf("with-syntax: each binding must be [pattern expr], got %s", binding.String())
+			return nil, fmt.Errorf(
+				"with-syntax: each binding must be [pattern expr], got %s",
+				binding.String(),
+			)
 		}
 
 		val, err := pairSlice[1].Eval(env)
@@ -179,7 +185,12 @@ func bindSyntaxVars(env *Environment, b *macroBindings) {
 // storeSyntaxBindings saves macro bindings into the environment for use
 // by the syntax template form. Merges with any existing bindings from
 // an enclosing syntax-case.
-func storeSyntaxBindings(env *Environment, b *macroBindings, literals map[string]bool, outer *Environment) {
+func storeSyntaxBindings(
+	env *Environment,
+	b *macroBindings,
+	literals map[string]bool,
+	outer *Environment,
+) {
 	existing := lookupSyntaxEnv(outer)
 	env.Bind(syntaxBindingsKey, mergeSyntaxEnv(existing, b, literals))
 }
@@ -205,7 +216,12 @@ func evalQuasisyntax(args []Expr, env *Environment) (Expr, error) {
 
 // expandQuasisyntax walks a template, expanding pattern variables via syntax
 // bindings, evaluating (unsyntax ...) escapes, and splicing (unsyntax-splicing ...).
-func expandQuasisyntax(tmpl Expr, se *syntaxEnvExpr, env *Environment, renames map[string]string) (Expr, error) {
+func expandQuasisyntax(
+	tmpl Expr,
+	se *syntaxEnvExpr,
+	env *Environment,
+	renames map[string]string,
+) (Expr, error) {
 	elements, err := toSlice("quasisyntax", tmpl)
 	if err != nil {
 		// Atom: expand as syntax template if we have bindings, otherwise return as-is.
@@ -216,7 +232,10 @@ func expandQuasisyntax(tmpl Expr, se *syntaxEnvExpr, env *Environment, renames m
 					return val, nil
 				}
 				if _, ok := se.bindings.ellipsis[sym.val]; ok {
-					return nil, fmt.Errorf("syntax: ellipsis variable %q used outside ellipsis template", sym.val)
+					return nil, fmt.Errorf(
+						"syntax: ellipsis variable %q used outside ellipsis template",
+						sym.val,
+					)
 				}
 				// Template-introduced binding: apply hygiene rename.
 				if renamed, ok := renames[sym.val]; ok {

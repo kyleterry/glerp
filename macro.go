@@ -113,7 +113,11 @@ func parseLiterals(name string, list Expr) (map[string]bool, error) {
 
 // mergeSyntaxEnv creates a new syntaxEnvExpr by merging an existing syntax
 // environment (may be nil) with additional bindings and literals.
-func mergeSyntaxEnv(existing *syntaxEnvExpr, b *macroBindings, literals map[string]bool) *syntaxEnvExpr {
+func mergeSyntaxEnv(
+	existing *syntaxEnvExpr,
+	b *macroBindings,
+	literals map[string]bool,
+) *syntaxEnvExpr {
 	merged := newMacroBindings()
 	mergedLiterals := make(map[string]bool)
 
@@ -334,7 +338,12 @@ func collectBindingRenames(template Expr, b *macroBindings, renames map[string]s
 	}
 }
 
-func doExpand(template Expr, b *macroBindings, literals map[string]bool, renames map[string]string) (Expr, error) {
+func doExpand(
+	template Expr,
+	b *macroBindings,
+	literals map[string]bool,
+	renames map[string]string,
+) (Expr, error) {
 	switch t := template.(type) {
 	case *SymbolExpr:
 		// Pattern variable: substitute the matched value.
@@ -445,7 +454,10 @@ func copyBindings(m map[string]Expr) map[string]Expr {
 // The transformer is typically a (syntax-rules ...) expression.
 func evalDefineSyntax(args []Expr, env *Environment) (Expr, error) {
 	if len(args) != 2 {
-		return nil, fmt.Errorf("define-syntax: expected (define-syntax name transformer), got %d args", len(args))
+		return nil, fmt.Errorf(
+			"define-syntax: expected (define-syntax name transformer), got %d args",
+			len(args),
+		)
 	}
 
 	nameSym, ok := args[0].(*SymbolExpr)
@@ -487,7 +499,10 @@ func evalSyntaxRules(args []Expr, env *Environment) (Expr, error) {
 	for _, arg := range args[1:] {
 		ruleSlice, err := toSlice("syntax-rules", arg)
 		if err != nil || len(ruleSlice) != 2 {
-			return nil, fmt.Errorf("syntax-rules: each rule must be (pattern template), got %s", arg.String())
+			return nil, fmt.Errorf(
+				"syntax-rules: each rule must be (pattern template), got %s",
+				arg.String(),
+			)
 		}
 		rules = append(rules, macroRule{
 			pattern:  ruleSlice[0],

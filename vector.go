@@ -9,10 +9,13 @@ func vectorBuiltins() map[string]BuiltinFn {
 		"vector-ref":    builtinVectorRef,
 		"vector-set!":   builtinVectorSet,
 		"vector-length": builtinVectorLength,
-		"vector?":       typePred("vector?", func(e Expr) bool { _, ok := e.(*VectorExpr); return ok }),
-		"vector->list":  builtinVectorToList,
-		"list->vector":  builtinListToVector,
-		"vector-fill!":  builtinVectorFill,
+		"vector?": typePred(
+			"vector?",
+			func(e Expr) bool { _, ok := e.(*VectorExpr); return ok },
+		),
+		"vector->list": builtinVectorToList,
+		"list->vector": builtinListToVector,
+		"vector-fill!": builtinVectorFill,
 	}
 }
 
@@ -30,7 +33,12 @@ func vectorIndex(name string, args []Expr) (*VectorExpr, int, error) {
 
 	idx := int(k)
 	if idx < 0 || idx >= len(vec.elements) {
-		return nil, 0, fmt.Errorf("%s: index %d out of range for vector of length %d", name, idx, len(vec.elements))
+		return nil, 0, fmt.Errorf(
+			"%s: index %d out of range for vector of length %d",
+			name,
+			idx,
+			len(vec.elements),
+		)
 	}
 
 	return vec, idx, nil
@@ -100,7 +108,10 @@ func builtinVectorSet(args []Expr) (Expr, error) {
 }
 
 var (
-	builtinVectorLength = b1vec("vector-length", func(v *VectorExpr) Expr { return num(float64(len(v.elements))) })
+	builtinVectorLength = b1vec(
+		"vector-length",
+		func(v *VectorExpr) Expr { return num(float64(len(v.elements))) },
+	)
 	builtinVectorToList = b1vec("vector->list", func(v *VectorExpr) Expr {
 		elems := make([]Expr, len(v.elements))
 		copy(elems, v.elements)

@@ -819,7 +819,10 @@ func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
 	for _, el := range elements {
 		if spliceArgs, ok := isTagged(el, "unquote-splicing"); ok {
 			if len(spliceArgs) != 1 {
-				return nil, fmt.Errorf("unquote-splicing: expected 1 argument, got %d", len(spliceArgs))
+				return nil, fmt.Errorf(
+					"unquote-splicing: expected 1 argument, got %d",
+					len(spliceArgs),
+				)
 			}
 
 			if depth == 0 {
@@ -830,7 +833,10 @@ func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
 
 				spliceSlice, err := toSlice("unquote-splicing", val)
 				if err != nil {
-					return nil, fmt.Errorf("unquote-splicing: expected a list, got %s", val.String())
+					return nil, fmt.Errorf(
+						"unquote-splicing: expected a list, got %s",
+						val.String(),
+					)
 				}
 
 				result = append(result, spliceSlice...)
@@ -842,7 +848,10 @@ func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
 				return nil, err
 			}
 
-			sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "unquote-splicing"}, val: "unquote-splicing"}
+			sym := &SymbolExpr{
+				tok: Token{Kind: Symbol, Value: "unquote-splicing"},
+				val: "unquote-splicing",
+			}
 			unquoteList, _ := builtinList([]Expr{sym, expanded})
 			result = append(result, unquoteList)
 			continue
@@ -900,7 +909,10 @@ func evalBody(exprs []Expr, env *Environment) (Expr, error) {
 // As a special case, a single-name list accepts any non-values result.
 func evalDefineValues(args []Expr, env *Environment) (Expr, error) {
 	if len(args) != 2 {
-		return nil, fmt.Errorf("define-values: expected name list and expression, got %d args", len(args))
+		return nil, fmt.Errorf(
+			"define-values: expected name list and expression, got %d args",
+			len(args),
+		)
 	}
 
 	nameSlice, err := toSlice("define-values", args[0])
@@ -925,7 +937,11 @@ func evalDefineValues(args []Expr, env *Environment) (Expr, error) {
 
 	if mv, ok := result.(*ValuesExpr); ok {
 		if len(mv.vals) != len(syms) {
-			return nil, fmt.Errorf("define-values: expected %d values, got %d", len(syms), len(mv.vals))
+			return nil, fmt.Errorf(
+				"define-values: expected %d values, got %d",
+				len(syms),
+				len(mv.vals),
+			)
 		}
 
 		for i, name := range syms {
@@ -1003,7 +1019,10 @@ func evalCase(args []Expr, env *Environment) (Expr, error) {
 
 		datumSlice, err := toSlice("case", head)
 		if err != nil {
-			return nil, fmt.Errorf("case: clause head must be a datum list or else, got %s", head.String())
+			return nil, fmt.Errorf(
+				"case: clause head must be a datum list or else, got %s",
+				head.String(),
+			)
 		}
 
 		for _, datum := range datumSlice {
@@ -1115,12 +1134,18 @@ func evalDo(args []Expr, env *Environment) (Expr, error) {
 	for i, el := range varSlice {
 		clauseSlice, err := toSlice("do", el)
 		if err != nil || len(clauseSlice) < 2 || len(clauseSlice) > 3 {
-			return nil, fmt.Errorf("do: variable spec must be (var init) or (var init step), got %s", el.String())
+			return nil, fmt.Errorf(
+				"do: variable spec must be (var init) or (var init step), got %s",
+				el.String(),
+			)
 		}
 
 		sym, ok := clauseSlice[0].(*SymbolExpr)
 		if !ok {
-			return nil, fmt.Errorf("do: variable name must be a symbol, got %s", clauseSlice[0].String())
+			return nil, fmt.Errorf(
+				"do: variable name must be a symbol, got %s",
+				clauseSlice[0].String(),
+			)
 		}
 
 		init, err := clauseSlice[1].Eval(env)

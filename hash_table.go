@@ -4,8 +4,11 @@ import "fmt"
 
 func hashTableBuiltins() map[string]BuiltinFn {
 	return map[string]BuiltinFn{
-		"make-hash-table":      builtinMakeHashTable,
-		"hash-table?":          typePred("hash-table?", func(e Expr) bool { h, ok := e.(*HashTableExpr); return ok && h.data != nil }),
+		"make-hash-table": builtinMakeHashTable,
+		"hash-table?": typePred(
+			"hash-table?",
+			func(e Expr) bool { h, ok := e.(*HashTableExpr); return ok && h.data != nil },
+		),
 		"hash-table-ref":       builtinHashTableRef,
 		"hash-table-set!":      builtinHashTableSet,
 		"hash-table-delete!":   builtinHashTableDelete,
@@ -146,7 +149,10 @@ func builtinAlistToHashTable(args []Expr) (Expr, error) {
 	for _, el := range slice {
 		pairSlice, err := toSlice("alist->hash-table", el)
 		if err != nil || len(pairSlice) != 2 {
-			return nil, fmt.Errorf("alist->hash-table: each element must be a (key value) list, got %s", el.String())
+			return nil, fmt.Errorf(
+				"alist->hash-table: each element must be a (key value) list, got %s",
+				el.String(),
+			)
 		}
 
 		ht.Set(pairSlice[0], pairSlice[1])

@@ -20,27 +20,45 @@ type BuiltinFn func([]Expr) (Expr, error)
 // as Libraries on the config and accessed with (import :go/time) from Scheme.
 func StandardBuiltins() map[string]BuiltinFn {
 	m := map[string]BuiltinFn{
-		"+":                         builtinAdd,
-		"-":                         builtinSub,
-		"*":                         builtinMul,
-		"/":                         builtinDiv,
-		"<":                         builtinLess,
-		">":                         builtinGreater,
-		"<=":                        builtinLessEq,
-		">=":                        builtinGreaterEq,
-		"=":                         builtinNumEq,
-		"not":                       builtinNot,
-		"car":                       builtinCar,
-		"cdr":                       builtinCdr,
-		"cons":                      builtinCons,
-		"null?":                     typePred("null?", func(e Expr) bool { return e == Null() }),
-		"pair?":                     typePred("pair?", func(e Expr) bool { _, ok := e.(*Pair); return ok }),
-		"list?":                     typePred("list?", isList),
-		"number?":                   typePred("number?", func(e Expr) bool { _, ok := e.(*NumberExpr); return ok }),
-		"string?":                   typePred("string?", func(e Expr) bool { _, ok := e.(*StringExpr); return ok }),
-		"boolean?":                  typePred("boolean?", func(e Expr) bool { _, ok := e.(*BoolExpr); return ok }),
-		"symbol?":                   typePred("symbol?", func(e Expr) bool { _, ok := e.(*SymbolExpr); return ok }),
-		"procedure?":                typePred("procedure?", func(e Expr) bool { _, okL := e.(*LambdaExpr); _, okB := e.(*BuiltinExpr); return okL || okB }),
+		"+":     builtinAdd,
+		"-":     builtinSub,
+		"*":     builtinMul,
+		"/":     builtinDiv,
+		"<":     builtinLess,
+		">":     builtinGreater,
+		"<=":    builtinLessEq,
+		">=":    builtinGreaterEq,
+		"=":     builtinNumEq,
+		"not":   builtinNot,
+		"car":   builtinCar,
+		"cdr":   builtinCdr,
+		"cons":  builtinCons,
+		"null?": typePred("null?", func(e Expr) bool { return e == Null() }),
+		"pair?": typePred(
+			"pair?",
+			func(e Expr) bool { _, ok := e.(*Pair); return ok },
+		),
+		"list?": typePred("list?", isList),
+		"number?": typePred(
+			"number?",
+			func(e Expr) bool { _, ok := e.(*NumberExpr); return ok },
+		),
+		"string?": typePred(
+			"string?",
+			func(e Expr) bool { _, ok := e.(*StringExpr); return ok },
+		),
+		"boolean?": typePred(
+			"boolean?",
+			func(e Expr) bool { _, ok := e.(*BoolExpr); return ok },
+		),
+		"symbol?": typePred(
+			"symbol?",
+			func(e Expr) bool { _, ok := e.(*SymbolExpr); return ok },
+		),
+		"procedure?": typePred(
+			"procedure?",
+			func(e Expr) bool { _, okL := e.(*LambdaExpr); _, okB := e.(*BuiltinExpr); return okL || okB },
+		),
 		"eq?":                       builtinEq,
 		"equal?":                    builtinEqual,
 		"set-car!":                  builtinSetCar,
@@ -588,7 +606,11 @@ func builtinStringAppend(args []Expr) (Expr, error) {
 	for i, arg := range args {
 		s, ok := arg.(*StringExpr)
 		if !ok {
-			return nil, fmt.Errorf("string-append: argument %d is not a string: %s", i+1, arg.String())
+			return nil, fmt.Errorf(
+				"string-append: argument %d is not a string: %s",
+				i+1,
+				arg.String(),
+			)
 		}
 		b.WriteString(s.val)
 	}
@@ -768,9 +790,18 @@ func builtinGetEnvVars(args []Expr) (Expr, error) {
 }
 
 var (
-	builtinSymbolToString = b1sym("symbol->string", func(v string) Expr { return &StringExpr{val: v} })
-	builtinStringToSymbol = b1s("string->symbol", func(v string) Expr { return &SymbolExpr{val: v} })
-	builtinGensym         = b1s("gensym", func(v string) Expr { return &SymbolExpr{val: gensym(v)} })
+	builtinSymbolToString = b1sym(
+		"symbol->string",
+		func(v string) Expr { return &StringExpr{val: v} },
+	)
+	builtinStringToSymbol = b1s(
+		"string->symbol",
+		func(v string) Expr { return &SymbolExpr{val: v} },
+	)
+	builtinGensym = b1s(
+		"gensym",
+		func(v string) Expr { return &SymbolExpr{val: gensym(v)} },
+	)
 )
 
 func builtinDatumToSyntax(args []Expr) (Expr, error) {

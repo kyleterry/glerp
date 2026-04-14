@@ -203,7 +203,11 @@ func NewEnvironment(cfg *EnvironmentConfig) *Environment {
 
 // newBaseEnvironment creates a root environment populated with the given
 // builtins and special forms, without loading preludes.
-func newBaseEnvironment(builtins map[string]BuiltinFn, forms map[string]FormFn, reg *registry) *Environment {
+func newBaseEnvironment(
+	builtins map[string]BuiltinFn,
+	forms map[string]FormFn,
+	reg *registry,
+) *Environment {
 	env := &Environment{vals: make(map[string]Expr), reg: reg}
 
 	for name, fn := range builtins {

@@ -79,7 +79,10 @@ func (p *Parser) parseExpr() (Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "unquote-splicing"}, val: "unquote-splicing"}
+		sym := &SymbolExpr{
+			tok: Token{Kind: Symbol, Value: "unquote-splicing"},
+			val: "unquote-splicing",
+		}
 		return &ListExpr{tok: tok, elements: []Expr{sym, inner}}, nil
 
 	case HashQuote:
@@ -119,7 +122,10 @@ func (p *Parser) parseExpr() (Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		sym := &SymbolExpr{tok: Token{Kind: Symbol, Value: "unsyntax-splicing"}, val: "unsyntax-splicing"}
+		sym := &SymbolExpr{
+			tok: Token{Kind: Symbol, Value: "unsyntax-splicing"},
+			val: "unsyntax-splicing",
+		}
 		return &ListExpr{tok: tok, elements: []Expr{sym, inner}}, nil
 
 	case Number:
@@ -201,7 +207,11 @@ func (p *Parser) parseList() (Expr, error) {
 			// Next must be close
 			next := p.lexer.NextToken()
 			if next.Kind != close {
-				return nil, fmt.Errorf("expected '%s' after dotted list rest, got %s", close, next.Value)
+				return nil, fmt.Errorf(
+					"expected '%s' after dotted list rest, got %s",
+					close,
+					next.Value,
+				)
 			}
 			break
 		}

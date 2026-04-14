@@ -65,7 +65,11 @@ func TestEval(t *testing.T) {
 			(define inc (make-counter))
 			(inc) (inc) (inc)
 		`, "3"},
-		{"lambda closure", "(define make-adder (lambda (n) (lambda (x) (+ n x)))) ((make-adder 3) 7)", "10"},
+		{
+			"lambda closure",
+			"(define make-adder (lambda (n) (lambda (x) (+ n x)))) ((make-adder 3) 7)",
+			"10",
+		},
 
 		// define function shorthand
 		{"define fn", "(define (square x) (* x x)) (square 7)", "49"},
@@ -180,11 +184,19 @@ func TestEval(t *testing.T) {
 		{"bracket let* bindings", "(let* [(x 3) (y (* x 2))] y)", "6"},
 		{"bracket nested in parens", "(+ 1 [+ 2 3])", "6"},
 		{"parens nested in brackets", "[+ 1 (+ 2 3)]", "6"},
-		{"bracket let quoted value", "(let [(foo 'foo-value) (bar \"bar value\")] foo)", "foo-value"},
+		{
+			"bracket let quoted value",
+			"(let [(foo 'foo-value) (bar \"bar value\")] foo)",
+			"foo-value",
+		},
 
 		// recursion
 		{"factorial", "(define (fact n) (if (= n 0) 1 (* n (fact (- n 1))))) (fact 5)", "120"},
-		{"fibonacci", "(define (fib n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))) (fib 10)", "55"},
+		{
+			"fibonacci",
+			"(define (fib n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))) (fib 10)",
+			"55",
+		},
 
 		// higher-order
 		{"map-like", `
