@@ -181,21 +181,6 @@ func toHash(name string, e Expr) (*HashTableExpr, error) {
 
 func num(v float64) *NumberExpr { return &NumberExpr{val: v} }
 func boolean(v bool) *BoolExpr  { return &BoolExpr{val: v} }
-func str(v string) *StringExpr  { return &StringExpr{val: v} }
-
-// b1n creates a 1-argument numeric builtin.
-func b1n(name string, fn func(float64) Expr) BuiltinFn {
-	return func(args []Expr) (Expr, error) {
-		if err := checkArity(name, args, 1); err != nil {
-			return nil, err
-		}
-		val, err := toNum(name, args[0])
-		if err != nil {
-			return nil, err
-		}
-		return fn(val), nil
-	}
-}
 
 // b1s creates a 1-argument string builtin.
 func b1s(name string, fn func(string) Expr) BuiltinFn {
