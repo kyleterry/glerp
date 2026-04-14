@@ -198,18 +198,35 @@ func evalQuasisyntax(args []Expr, env *Environment) (Expr, error) {
 	}
 
 	se := lookupSyntaxEnv(env)
+	renames := make(map[string]string)
 
-	return expandQuasisyntax(args[0], se, env)
+	if se != nil {
+		collectBindingRenames(args[0], se.bindings, renames)
+	}
+
+	return expandQuasisyntax(args[0], se, env, renames)
 }
 
 // expandQuasisyntax walks a template, expanding pattern variables via syntax
 // bindings, evaluating (unsyntax ...) escapes, and splicing (unsyntax-splicing ...).
-func expandQuasisyntax(tmpl Expr, se *syntaxEnvExpr, env *Environment) (Expr, error) {
+func expandQuasisyntax(tmpl Expr, se *syntaxEnvExpr, env *Environment, renames map[string]string) (Expr, error) {
 	list, ok := tmpl.(*ListExpr)
 	if !ok {
 		// Atom: expand as syntax template if we have bindings, otherwise return as-is.
 		if se != nil {
-			return expandTemplate(tmpl, se.bindings, se.literals)
+			// Check pattern variables.
+			if sym, ok := tmpl.(*SymbolExpr); ok {
+				if val, ok := se.bindings.vars[sym.val]; ok {
+					return val, nil
+				}
+				if _, ok := se.bindings.ellipsis[sym.val]; ok {
+					return nil, fmt.Errorf("syntax: ellipsis variable %q used outside ellipsis template", sym.val)
+				}
+				// Template-introduced binding: apply hygiene rename.
+				if renamed, ok := renames[sym.val]; ok {
+					return &SymbolExpr{val: renamed}, nil
+				}
+			}
 		}
 
 		return tmpl, nil
@@ -251,7 +268,7 @@ func expandQuasisyntax(tmpl Expr, se *syntaxEnvExpr, env *Environment) (Expr, er
 			}
 		}
 
-		expanded, err := expandQuasisyntax(elem, se, env)
+		expanded, err := expandQuasisyntax(elem, se, env, renames)
 		if err != nil {
 			return nil, err
 		}
