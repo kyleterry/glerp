@@ -102,21 +102,25 @@ var (
 		for i, sk := range ht.order {
 			elems[i] = ht.keys[sk]
 		}
-		return &ListExpr{elements: elems}
+		l, _ := builtinList(elems)
+		return l
 	})
 	builtinHashTableValues = b1hash("hash-table-values", func(ht *HashTableExpr) Expr {
 		elems := make([]Expr, len(ht.order))
 		for i, sk := range ht.order {
 			elems[i] = ht.data[sk]
 		}
-		return &ListExpr{elements: elems}
+		l, _ := builtinList(elems)
+		return l
 	})
 	builtinHashTableToAlist = b1hash("hash-table->alist", func(ht *HashTableExpr) Expr {
 		elems := make([]Expr, len(ht.order))
 		for i, sk := range ht.order {
-			elems[i] = &ListExpr{elements: []Expr{ht.keys[sk], ht.data[sk]}}
+			pair, _ := builtinList([]Expr{ht.keys[sk], ht.data[sk]})
+			elems[i] = pair
 		}
-		return &ListExpr{elements: elems}
+		l, _ := builtinList(elems)
+		return l
 	})
 	builtinHashTableCopy = b1hash("hash-table-copy", func(ht *HashTableExpr) Expr {
 		cp := newHashTable(ht.tok)
@@ -132,20 +136,20 @@ func builtinAlistToHashTable(args []Expr) (Expr, error) {
 		return nil, err
 	}
 
-	lst, err := toList("alist->hash-table", args[0])
+	slice, err := toList("alist->hash-table", args[0])
 	if err != nil {
 		return nil, err
 	}
 
 	ht := newHashTable(Token{})
 
-	for _, el := range lst.elements {
-		pair, ok := el.(*ListExpr)
-		if !ok || len(pair.elements) != 2 {
+	for _, el := range slice {
+		pairSlice, err := toSlice("alist->hash-table", el)
+		if err != nil || len(pairSlice) != 2 {
 			return nil, fmt.Errorf("alist->hash-table: each element must be a (key value) list, got %s", el.String())
 		}
 
-		ht.Set(pair.elements[0], pair.elements[1])
+		ht.Set(pairSlice[0], pairSlice[1])
 	}
 
 	return ht, nil

@@ -50,11 +50,19 @@ type AppConfig struct {
 // subform extracts the key name and value expressions from a (key val...)
 // sub-form. Used by forms that accept keyword-style children.
 func subform(e glerp.Expr) (key string, vals []glerp.Expr, err error) {
-	lst, ok := e.(*glerp.ListExpr)
-	if !ok {
+	var elems []glerp.Expr
+
+	if p, ok := e.(*glerp.Pair); ok {
+		elems, err = p.ToSlice()
+		if err != nil {
+			return "", nil, fmt.Errorf("subform: %w", err)
+		}
+	} else if lst, ok := e.(*glerp.ListExpr); ok {
+		elems = lst.Elements()
+	} else {
 		return "", nil, fmt.Errorf("expected (key value...), got %s", e.String())
 	}
-	elems := lst.Elements()
+
 	if len(elems) == 0 {
 		return "", nil, fmt.Errorf("empty sub-form")
 	}

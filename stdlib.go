@@ -114,27 +114,31 @@ func applyImportSpec(spec Expr, env *Environment) error {
 	case *SymbolExpr:
 		return importAll(s.val, env)
 
-	case *ListExpr:
-		if len(s.elements) == 0 {
+	case *Pair, *ListExpr:
+		slice, err := toSlice("import", spec)
+		if err != nil {
+			return err
+		}
+		if len(slice) == 0 {
 			return fmt.Errorf("import: empty import spec")
 		}
-		head, ok := s.elements[0].(*SymbolExpr)
+		head, ok := slice[0].(*SymbolExpr)
 		if !ok {
-			return fmt.Errorf("import: modifier must be a symbol, got %s", s.elements[0].String())
+			return fmt.Errorf("import: modifier must be a symbol, got %s", slice[0].String())
 		}
 
 		switch head.val {
 		case "only":
-			if len(s.elements) < 3 {
+			if len(slice) < 3 {
 				return fmt.Errorf("import: (only <lib> <name> ...) requires a library and at least one name")
 			}
-			libSym, ok := s.elements[1].(*SymbolExpr)
+			libSym, ok := slice[1].(*SymbolExpr)
 			if !ok {
-				return fmt.Errorf("import: only: library spec must be a symbol, got %s", s.elements[1].String())
+				return fmt.Errorf("import: only: library spec must be a symbol, got %s", slice[1].String())
 			}
 
-			names := make([]string, len(s.elements)-2)
-			for i, el := range s.elements[2:] {
+			names := make([]string, len(slice)-2)
+			for i, el := range slice[2:] {
 				sym, ok := el.(*SymbolExpr)
 				if !ok {
 					return fmt.Errorf("import: only: names must be symbols, got %s", el.String())

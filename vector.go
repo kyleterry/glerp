@@ -104,11 +104,12 @@ var (
 	builtinVectorToList = b1vec("vector->list", func(v *VectorExpr) Expr {
 		elems := make([]Expr, len(v.elements))
 		copy(elems, v.elements)
-		return &ListExpr{elements: elems}
+		l, _ := builtinList(elems)
+		return l
 	})
-	builtinListToVector = b1lst("list->vector", func(l *ListExpr) Expr {
-		elems := make([]Expr, len(l.elements))
-		copy(elems, l.elements)
+	builtinListToVector = b1lst("list->vector", func(slice []Expr) Expr {
+		elems := make([]Expr, len(slice))
+		copy(elems, slice)
 		return &VectorExpr{elements: elems}
 	})
 )

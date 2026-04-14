@@ -43,10 +43,15 @@ func (e *SyntaxRulesExpr) String() string {
 
 // expand tries each rule against the full unevaluated call form and returns
 // the rewritten AST ready for evaluation.
-func (e *SyntaxRulesExpr) expand(form *ListExpr) (Expr, error) {
+func (e *SyntaxRulesExpr) expand(form Expr) (Expr, error) {
+	formSlice, err := toSlice("macro", form)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, rule := range e.rules {
-		patList, ok := rule.pattern.(*ListExpr)
-		if !ok {
+		patSlice, err := toSlice("macro", rule.pattern)
+		if err != nil {
 			continue
 		}
 
@@ -54,7 +59,7 @@ func (e *SyntaxRulesExpr) expand(form *ListExpr) (Expr, error) {
 
 		// The first element of each pattern is the macro keyword (or _).
 		// Skip it in both the pattern and the call form.
-		if matchList(patList.elements[1:], form.elements[1:], e.literals, b) {
+		if matchList(patSlice[1:], formSlice[1:], e.literals, b) {
 			return expandTemplate(rule.template, b, e.literals)
 		}
 	}
@@ -86,10 +91,15 @@ func (b *macroBindings) isPatternVar(name string) bool {
 
 // parseLiterals extracts symbol names from a literal list expression,
 // returning a set. Used by syntax-rules and syntax-case.
-func parseLiterals(name string, list *ListExpr) (map[string]bool, error) {
-	literals := make(map[string]bool, len(list.elements))
+func parseLiterals(name string, list Expr) (map[string]bool, error) {
+	elements, err := toSlice(name, list)
+	if err != nil {
+		return nil, err
+	}
 
-	for _, el := range list.elements {
+	literals := make(map[string]bool, len(elements))
+
+	for _, el := range elements {
 		sym, ok := el.(*SymbolExpr)
 		if !ok {
 			return nil, fmt.Errorf("%s: literal must be a symbol, got %s", name, el.String())
@@ -140,12 +150,16 @@ func matchPattern(pat, form Expr, literals map[string]bool, b *macroBindings) bo
 		}
 		b.vars[p.val] = form
 		return true
-	case *ListExpr:
-		formList, ok := form.(*ListExpr)
-		if !ok {
+	case *Pair, *ListExpr:
+		patSlice, err := toSlice("macro pattern", p)
+		if err != nil {
 			return false
 		}
-		return matchList(p.elements, formList.elements, literals, b)
+		formSlice, err := toSlice("macro form", form)
+		if err != nil {
+			return false
+		}
+		return matchList(patSlice, formSlice, literals, b)
 	case *NumberExpr:
 		fn, ok := form.(*NumberExpr)
 		return ok && fn.val == p.val
@@ -225,8 +239,9 @@ func collectPatVars(pat Expr, literals map[string]bool) []string {
 		if p.val != "_" && p.val != "..." && !literals[p.val] {
 			vars = append(vars, p.val)
 		}
-	case *ListExpr:
-		for _, el := range p.elements {
+	case *Pair, *ListExpr:
+		slice, _ := toSlice("macro pattern", p)
+		for _, el := range slice {
 			vars = append(vars, collectPatVars(el, literals)...)
 		}
 	}
@@ -249,13 +264,13 @@ func expandTemplate(template Expr, b *macroBindings, literals map[string]bool) (
 // is not already a pattern variable. Only binding-position variables are
 // renamed; free references such as recursive macro calls are left alone.
 func collectBindingRenames(template Expr, b *macroBindings, renames map[string]string) {
-	lst, ok := template.(*ListExpr)
-	if !ok || len(lst.elements) == 0 {
+	elements, err := toSlice("macro template", template)
+	if err != nil || len(elements) == 0 {
 		return
 	}
-	head, ok := lst.elements[0].(*SymbolExpr)
+	head, ok := elements[0].(*SymbolExpr)
 	if !ok {
-		for _, el := range lst.elements {
+		for _, el := range elements {
 			collectBindingRenames(el, b, renames)
 		}
 		return
@@ -272,11 +287,13 @@ func collectBindingRenames(template Expr, b *macroBindings, renames map[string]s
 	switch head.val {
 	case "let", "let*":
 		// (let ((var val) ...) body ...)
-		if len(lst.elements) >= 2 {
-			if bindings, ok := lst.elements[1].(*ListExpr); ok {
-				for _, binding := range bindings.elements {
-					if pair, ok := binding.(*ListExpr); ok && len(pair.elements) >= 1 {
-						if sym, ok := pair.elements[0].(*SymbolExpr); ok {
+		if len(elements) >= 2 {
+			bindings, err := toSlice("macro template", elements[1])
+			if err == nil {
+				for _, binding := range bindings {
+					pair, err := toSlice("macro template", binding)
+					if err == nil && len(pair) >= 1 {
+						if sym, ok := pair[0].(*SymbolExpr); ok {
 							rename(sym)
 						}
 					}
@@ -285,9 +302,10 @@ func collectBindingRenames(template Expr, b *macroBindings, renames map[string]s
 		}
 	case "lambda":
 		// (lambda (param ...) body ...)
-		if len(lst.elements) >= 2 {
-			if params, ok := lst.elements[1].(*ListExpr); ok {
-				for _, p := range params.elements {
+		if len(elements) >= 2 {
+			params, err := toSlice("macro template", elements[1])
+			if err == nil {
+				for _, p := range params {
 					if sym, ok := p.(*SymbolExpr); ok {
 						rename(sym)
 					}
@@ -296,13 +314,14 @@ func collectBindingRenames(template Expr, b *macroBindings, renames map[string]s
 		}
 	case "define":
 		// (define name val) or (define (name params...) body ...)
-		if len(lst.elements) >= 2 {
-			switch target := lst.elements[1].(type) {
+		if len(elements) >= 2 {
+			switch target := elements[1].(type) {
 			case *SymbolExpr:
 				rename(target)
-			case *ListExpr:
-				if len(target.elements) > 0 {
-					if sym, ok := target.elements[0].(*SymbolExpr); ok {
+			case *Pair, *ListExpr:
+				targetSlice, err := toSlice("macro template", target)
+				if err == nil && len(targetSlice) > 0 {
+					if sym, ok := targetSlice[0].(*SymbolExpr); ok {
 						rename(sym)
 					}
 				}
@@ -310,7 +329,7 @@ func collectBindingRenames(template Expr, b *macroBindings, renames map[string]s
 		}
 	}
 
-	for _, el := range lst.elements[1:] {
+	for _, el := range elements[1:] {
 		collectBindingRenames(el, b, renames)
 	}
 }
@@ -332,13 +351,30 @@ func doExpand(template Expr, b *macroBindings, literals map[string]bool, renames
 		}
 		return t, nil
 
-	case *ListExpr:
-		result := make([]Expr, 0, len(t.elements))
+	case *Pair, *ListExpr:
+		elements, err := toSlice("macro template", t)
+		if err != nil {
+			// Handle improper lists in templates
+			if p, ok := t.(*Pair); ok {
+				car, err := doExpand(p.car, b, literals, renames)
+				if err != nil {
+					return nil, err
+				}
+				cdr, err := doExpand(p.cdr, b, literals, renames)
+				if err != nil {
+					return nil, err
+				}
+				return &Pair{tok: p.tok, car: car, cdr: cdr}, nil
+			}
+			return t, nil
+		}
 
-		for i := 0; i < len(t.elements); i++ {
-			if i+1 < len(t.elements) && isEllipsis(t.elements[i+1]) {
+		result := make([]Expr, 0, len(elements))
+
+		for i := 0; i < len(elements); i++ {
+			if i+1 < len(elements) && isEllipsis(elements[i+1]) {
 				// Ellipsis expansion: repeat the sub-template once per match.
-				evars := findEllipsisVars(t.elements[i], b)
+				evars := findEllipsisVars(elements[i], b)
 				if len(evars) == 0 {
 					return nil, fmt.Errorf("syntax: no ellipsis variable in ellipsis template position")
 				}
@@ -358,7 +394,7 @@ func doExpand(template Expr, b *macroBindings, literals map[string]bool, renames
 					for _, v := range evars {
 						sub.vars[v] = b.ellipsis[v][j]
 					}
-					expanded, err := doExpand(t.elements[i], sub, literals, renames)
+					expanded, err := doExpand(elements[i], sub, literals, renames)
 					if err != nil {
 						return nil, err
 					}
@@ -367,13 +403,13 @@ func doExpand(template Expr, b *macroBindings, literals map[string]bool, renames
 				i++ // skip "..."
 				continue
 			}
-			expanded, err := doExpand(t.elements[i], b, literals, renames)
+			expanded, err := doExpand(elements[i], b, literals, renames)
 			if err != nil {
 				return nil, err
 			}
 			result = append(result, expanded)
 		}
-		return &ListExpr{elements: result}, nil
+		return builtinList(result)
 
 	default:
 		// Numbers, strings, and booleans in templates are self-quoting.
@@ -390,8 +426,9 @@ func findEllipsisVars(template Expr, b *macroBindings) []string {
 		if _, ok := b.ellipsis[t.val]; ok {
 			vars = append(vars, t.val)
 		}
-	case *ListExpr:
-		for _, el := range t.elements {
+	case *Pair, *ListExpr:
+		elements, _ := toSlice("macro template", t)
+		for _, el := range elements {
 			vars = append(vars, findEllipsisVars(el, b)...)
 		}
 	}
@@ -441,25 +478,20 @@ func evalSyntaxRules(args []Expr, env *Environment) (Expr, error) {
 		return nil, fmt.Errorf("syntax-rules: expected (syntax-rules (literals ...) rule ...)")
 	}
 
-	litList, ok := args[0].(*ListExpr)
-	if !ok {
-		return nil, fmt.Errorf("syntax-rules: first argument must be a list of literals, got %s", args[0].String())
-	}
-
-	literals, err := parseLiterals("syntax-rules", litList)
+	literals, err := parseLiterals("syntax-rules", args[0])
 	if err != nil {
 		return nil, err
 	}
 
 	rules := make([]macroRule, 0, len(args)-1)
 	for _, arg := range args[1:] {
-		pair, ok := arg.(*ListExpr)
-		if !ok || len(pair.elements) != 2 {
+		ruleSlice, err := toSlice("syntax-rules", arg)
+		if err != nil || len(ruleSlice) != 2 {
 			return nil, fmt.Errorf("syntax-rules: each rule must be (pattern template), got %s", arg.String())
 		}
 		rules = append(rules, macroRule{
-			pattern:  pair.elements[0],
-			template: pair.elements[1],
+			pattern:  ruleSlice[0],
+			template: ruleSlice[1],
 		})
 	}
 

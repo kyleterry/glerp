@@ -33,9 +33,9 @@ func StandardBuiltins() map[string]BuiltinFn {
 		"car":                       builtinCar,
 		"cdr":                       builtinCdr,
 		"cons":                      builtinCons,
-		"null?":                     typePred("null?", func(e Expr) bool { l, ok := e.(*ListExpr); return ok && len(l.elements) == 0 }),
-		"pair?":                     typePred("pair?", func(e Expr) bool { l, ok := e.(*ListExpr); return ok && len(l.elements) > 0 }),
-		"list?":                     typePred("list?", func(e Expr) bool { _, ok := e.(*ListExpr); return ok }),
+		"null?":                     typePred("null?", func(e Expr) bool { return e == Null() }),
+		"pair?":                     typePred("pair?", func(e Expr) bool { _, ok := e.(*Pair); return ok }),
+		"list?":                     typePred("list?", isList),
 		"number?":                   typePred("number?", func(e Expr) bool { _, ok := e.(*NumberExpr); return ok }),
 		"string?":                   typePred("string?", func(e Expr) bool { _, ok := e.(*StringExpr); return ok }),
 		"boolean?":                  typePred("boolean?", func(e Expr) bool { _, ok := e.(*BoolExpr); return ok }),
@@ -43,6 +43,8 @@ func StandardBuiltins() map[string]BuiltinFn {
 		"procedure?":                typePred("procedure?", func(e Expr) bool { _, okL := e.(*LambdaExpr); _, okB := e.(*BuiltinExpr); return okL || okB }),
 		"eq?":                       builtinEq,
 		"equal?":                    builtinEqual,
+		"set-car!":                  builtinSetCar,
+		"set-cdr!":                  builtinSetCdr,
 		"modulo":                    builtinModulo,
 		"remainder":                 builtinRemainder,
 		"list":                      builtinList,
@@ -134,13 +136,8 @@ func toNum(name string, e Expr) (float64, error) {
 	return n.val, nil
 }
 
-func toList(name string, e Expr) (*ListExpr, error) {
-	l, ok := e.(*ListExpr)
-	if !ok {
-		return nil, fmt.Errorf("%s: expected list, got %s", name, e.String())
-	}
-
-	return l, nil
+func toList(name string, e Expr) ([]Expr, error) {
+	return toSlice(name, e)
 }
 
 func toStr(name string, e Expr) (string, error) {
@@ -211,7 +208,7 @@ func b1sym(name string, fn func(string) Expr) BuiltinFn {
 }
 
 // b1lst creates a 1-argument list builtin.
-func b1lst(name string, fn func(*ListExpr) Expr) BuiltinFn {
+func b1lst(name string, fn func([]Expr) Expr) BuiltinFn {
 	return func(args []Expr) (Expr, error) {
 		if err := checkArity(name, args, 1); err != nil {
 			return nil, err
@@ -377,12 +374,18 @@ func builtinCar(args []Expr) (Expr, error) {
 		return nil, err
 	}
 
-	lst, ok := args[0].(*ListExpr)
-	if !ok || len(lst.elements) == 0 {
-		return nil, fmt.Errorf("car: expected non-empty list, got %s", args[0].String())
+	if p, ok := args[0].(*Pair); ok {
+		return p.Car(), nil
 	}
 
-	return lst.elements[0], nil
+	slice, err := toSlice("car", args[0])
+	if err != nil {
+		return nil, err
+	}
+	if len(slice) == 0 {
+		return nil, fmt.Errorf("car: expected non-empty list, got %s", args[0].String())
+	}
+	return slice[0], nil
 }
 
 func builtinCdr(args []Expr) (Expr, error) {
@@ -390,12 +393,18 @@ func builtinCdr(args []Expr) (Expr, error) {
 		return nil, err
 	}
 
-	lst, ok := args[0].(*ListExpr)
-	if !ok || len(lst.elements) == 0 {
-		return nil, fmt.Errorf("cdr: expected non-empty list, got %s", args[0].String())
+	if p, ok := args[0].(*Pair); ok {
+		return p.Cdr(), nil
 	}
 
-	return &ListExpr{elements: lst.elements[1:]}, nil
+	slice, err := toSlice("cdr", args[0])
+	if err != nil {
+		return nil, err
+	}
+	if len(slice) == 0 {
+		return nil, fmt.Errorf("cdr: expected non-empty list, got %s", args[0].String())
+	}
+	return builtinList(slice[1:])
 }
 
 func builtinCons(args []Expr) (Expr, error) {
@@ -403,25 +412,95 @@ func builtinCons(args []Expr) (Expr, error) {
 		return nil, err
 	}
 
-	lst, err := toList("cons", args[1])
-	if err != nil {
+	return &Pair{car: args[0], cdr: args[1]}, nil
+}
+
+func builtinSetCar(args []Expr) (Expr, error) {
+	if err := checkArity("set-car!", args, 2); err != nil {
 		return nil, err
 	}
 
-	elems := make([]Expr, 1+len(lst.elements))
-	elems[0] = args[0]
-	copy(elems[1:], lst.elements)
+	p, ok := args[0].(*Pair)
+	if !ok {
+		return nil, fmt.Errorf("set-car!: expected pair, got %s", args[0].String())
+	}
 
-	return &ListExpr{elements: elems}, nil
+	p.SetCar(args[1])
+	return Void(), nil
+}
+
+func builtinSetCdr(args []Expr) (Expr, error) {
+	if err := checkArity("set-cdr!", args, 2); err != nil {
+		return nil, err
+	}
+
+	p, ok := args[0].(*Pair)
+	if !ok {
+		return nil, fmt.Errorf("set-cdr!: expected pair, got %s", args[0].String())
+	}
+
+	p.SetCdr(args[1])
+	return Void(), nil
 }
 
 func builtinList(args []Expr) (Expr, error) {
-	return &ListExpr{elements: args}, nil
+	var res Expr = Null() // Empty list
+	for i := len(args) - 1; i >= 0; i-- {
+		res = &Pair{car: args[i], cdr: res}
+	}
+	return res, nil
 }
 
-var builtinLength = b1lst("length", func(l *ListExpr) Expr {
-	return num(float64(len(l.elements)))
-})
+func toSlice(name string, e Expr) ([]Expr, error) {
+	switch l := e.(type) {
+	case *ListExpr:
+		if l == Null() {
+			return nil, nil
+		}
+		return l.elements, nil
+	case *Pair:
+		return l.ToSlice()
+	default:
+		return nil, fmt.Errorf("%s: expected list, got %s", name, e.String())
+	}
+}
+
+func isList(e Expr) bool {
+	curr := e
+	for {
+		switch l := curr.(type) {
+		case *ListExpr:
+			return l == Null()
+		case *Pair:
+			curr = l.cdr
+		default:
+			return false
+		}
+	}
+}
+
+func builtinLength(args []Expr) (Expr, error) {
+	if err := checkArity("length", args, 1); err != nil {
+		return nil, err
+	}
+
+	n := 0
+	curr := args[0]
+	for {
+		switch l := curr.(type) {
+		case *ListExpr:
+			if l == Null() {
+				return num(float64(n)), nil
+			}
+			return nil, fmt.Errorf("length: expected proper list, got %s", args[0].String())
+		case *Pair:
+			n++
+			curr = l.cdr
+		default:
+			return nil, fmt.Errorf("length: expected proper list, got %s", args[0].String())
+		}
+	}
+}
 
 func builtinMap(args []Expr) (Expr, error) {
 	if len(args) < 2 {
@@ -429,14 +508,14 @@ func builtinMap(args []Expr) (Expr, error) {
 	}
 
 	proc := args[0]
-	list, err := toList("map", args[1])
+	slice, err := toSlice("map", args[1])
 	if err != nil {
 		return nil, err
 	}
 
-	results := make([]Expr, len(list.elements))
+	results := make([]Expr, len(slice))
 
-	for i, elem := range list.elements {
+	for i, elem := range slice {
 		result, err := apply(proc, []Expr{elem})
 		if err != nil {
 			return nil, fmt.Errorf("map: %w", err)
@@ -445,7 +524,7 @@ func builtinMap(args []Expr) (Expr, error) {
 		results[i] = result
 	}
 
-	return &ListExpr{elements: results}, nil
+	return builtinList(results)
 }
 
 func builtinApply(args []Expr) (Expr, error) {
@@ -455,15 +534,15 @@ func builtinApply(args []Expr) (Expr, error) {
 
 	proc := args[0]
 
-	list, err := toList("apply", args[len(args)-1])
+	slice, err := toSlice("apply", args[len(args)-1])
 	if err != nil {
 		return nil, err
 	}
 
 	// Collect leading args + spread the final list
-	allArgs := make([]Expr, 0, len(args)-2+len(list.elements))
+	allArgs := make([]Expr, 0, len(args)-2+len(slice))
 	allArgs = append(allArgs, args[1:len(args)-1]...)
-	allArgs = append(allArgs, list.elements...)
+	allArgs = append(allArgs, slice...)
 
 	return apply(proc, allArgs)
 }
@@ -562,6 +641,12 @@ func elemsEqual(a, b []Expr) bool {
 }
 
 func deepEqual(a, b Expr) bool {
+	if pa, ok := a.(*Pair); ok {
+		if pb, ok := b.(*Pair); ok {
+			return deepEqual(pa.car, pb.car) && deepEqual(pa.cdr, pb.cdr)
+		}
+	}
+
 	if la, ok := a.(*ListExpr); ok {
 		if lb, ok := b.(*ListExpr); ok {
 			return elemsEqual(la.elements, lb.elements)
@@ -672,15 +757,14 @@ func builtinGetEnvVars(args []Expr) (Expr, error) {
 
 	for _, entry := range environ {
 		k, v, _ := strings.Cut(entry, "=")
-		entries = append(entries, &ListExpr{
-			elements: []Expr{
-				&StringExpr{val: k},
-				&StringExpr{val: v},
-			},
+		pair, _ := builtinList([]Expr{
+			&StringExpr{val: k},
+			&StringExpr{val: v},
 		})
+		entries = append(entries, pair)
 	}
 
-	return &ListExpr{elements: entries}, nil
+	return builtinList(entries)
 }
 
 var (

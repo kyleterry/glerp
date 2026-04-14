@@ -129,31 +129,31 @@ func (c *Config) Bool(name string) (bool, error) {
 	return b.val, nil
 }
 
-// List returns the list expression bound to name.
-func (c *Config) List(name string) (*ListExpr, error) {
+// List returns the slice of expressions bound to name.
+func (c *Config) List(name string) ([]Expr, error) {
 	expr, err := c.env.Find(name)
 	if err != nil {
 		return nil, err
 	}
 
-	lst, ok := expr.(*ListExpr)
-	if !ok {
+	slice, err := toSlice("config", expr)
+	if err != nil {
 		return nil, fmt.Errorf("config: %s is not a list (got %s)", name, expr.String())
 	}
 
-	return lst, nil
+	return slice, nil
 }
 
 // Strings returns a slice of string values from the list bound to name.
 func (c *Config) Strings(name string) ([]string, error) {
-	lst, err := c.List(name)
+	slice, err := c.List(name)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]string, len(lst.elements))
+	result := make([]string, len(slice))
 
-	for i, el := range lst.elements {
+	for i, el := range slice {
 		s, ok := el.(*StringExpr)
 		if !ok {
 			return nil, fmt.Errorf("config: %s[%d] is not a string (got %s)", name, i, el.String())
