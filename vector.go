@@ -11,18 +11,9 @@ func vectorBuiltins() map[string]BuiltinFn {
 		"vector-length": builtinVectorLength,
 		"vector?":       typePred("vector?", func(e Expr) bool { _, ok := e.(*VectorExpr); return ok }),
 		"vector->list":  builtinVectorToList,
-		"list->vector":  builtinListtoVectortor,
+		"list->vector":  builtinListToVector,
 		"vector-fill!":  builtinVectorFill,
 	}
-}
-
-func toVector(name string, e Expr) (*VectorExpr, error) {
-	v, ok := e.(*VectorExpr)
-	if !ok {
-		return nil, fmt.Errorf("%s: expected vector, got %s", name, e.String())
-	}
-
-	return v, nil
 }
 
 // vectorIndex extracts a VectorExpr from args[0] and a valid index from args[1].
@@ -108,50 +99,19 @@ func builtinVectorSet(args []Expr) (Expr, error) {
 	return Void(), nil
 }
 
-func builtinVectorLength(args []Expr) (Expr, error) {
-	if err := checkArity("vector-length", args, 1); err != nil {
-		return nil, err
-	}
-
-	vec, err := toVector("vector-length", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	return num(float64(len(vec.elements))), nil
-}
-
-func builtinVectorToList(args []Expr) (Expr, error) {
-	if err := checkArity("vector->list", args, 1); err != nil {
-		return nil, err
-	}
-
-	vec, err := toVector("vector->list", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	elems := make([]Expr, len(vec.elements))
-	copy(elems, vec.elements)
-
-	return &ListExpr{elements: elems}, nil
-}
-
-func builtinListtoVectortor(args []Expr) (Expr, error) {
-	if err := checkArity("list->vector", args, 1); err != nil {
-		return nil, err
-	}
-
-	lst, err := toList("list->vector", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	elems := make([]Expr, len(lst.elements))
-	copy(elems, lst.elements)
-
-	return &VectorExpr{elements: elems}, nil
-}
+var (
+	builtinVectorLength = b1vec("vector-length", func(v *VectorExpr) Expr { return num(float64(len(v.elements))) })
+	builtinVectorToList = b1vec("vector->list", func(v *VectorExpr) Expr {
+		elems := make([]Expr, len(v.elements))
+		copy(elems, v.elements)
+		return &ListExpr{elements: elems}
+	})
+	builtinListToVector = b1lst("list->vector", func(l *ListExpr) Expr {
+		elems := make([]Expr, len(l.elements))
+		copy(elems, l.elements)
+		return &VectorExpr{elements: elems}
+	})
+)
 
 func builtinVectorFill(args []Expr) (Expr, error) {
 	if err := checkArity("vector-fill!", args, 2); err != nil {

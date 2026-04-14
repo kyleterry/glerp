@@ -161,9 +161,111 @@ func toSym(name string, e Expr) (string, error) {
 	return s.val, nil
 }
 
+func toVector(name string, e Expr) (*VectorExpr, error) {
+	v, ok := e.(*VectorExpr)
+	if !ok {
+		return nil, fmt.Errorf("%s: expected vector, got %s", name, e.String())
+	}
+
+	return v, nil
+}
+
+func toHash(name string, e Expr) (*HashTableExpr, error) {
+	h, ok := e.(*HashTableExpr)
+	if !ok || h.data == nil {
+		return nil, fmt.Errorf("%s: expected hash-table, got %s", name, e.String())
+	}
+
+	return h, nil
+}
+
 func num(v float64) *NumberExpr { return &NumberExpr{val: v} }
 func boolean(v bool) *BoolExpr  { return &BoolExpr{val: v} }
 func str(v string) *StringExpr  { return &StringExpr{val: v} }
+
+// b1n creates a 1-argument numeric builtin.
+func b1n(name string, fn func(float64) Expr) BuiltinFn {
+	return func(args []Expr) (Expr, error) {
+		if err := checkArity(name, args, 1); err != nil {
+			return nil, err
+		}
+		val, err := toNum(name, args[0])
+		if err != nil {
+			return nil, err
+		}
+		return fn(val), nil
+	}
+}
+
+// b1s creates a 1-argument string builtin.
+func b1s(name string, fn func(string) Expr) BuiltinFn {
+	return func(args []Expr) (Expr, error) {
+		if err := checkArity(name, args, 1); err != nil {
+			return nil, err
+		}
+		val, err := toStr(name, args[0])
+		if err != nil {
+			return nil, err
+		}
+		return fn(val), nil
+	}
+}
+
+// b1sym creates a 1-argument symbol builtin.
+func b1sym(name string, fn func(string) Expr) BuiltinFn {
+	return func(args []Expr) (Expr, error) {
+		if err := checkArity(name, args, 1); err != nil {
+			return nil, err
+		}
+		val, err := toSym(name, args[0])
+		if err != nil {
+			return nil, err
+		}
+		return fn(val), nil
+	}
+}
+
+// b1lst creates a 1-argument list builtin.
+func b1lst(name string, fn func(*ListExpr) Expr) BuiltinFn {
+	return func(args []Expr) (Expr, error) {
+		if err := checkArity(name, args, 1); err != nil {
+			return nil, err
+		}
+		val, err := toList(name, args[0])
+		if err != nil {
+			return nil, err
+		}
+		return fn(val), nil
+	}
+}
+
+// b1vec creates a 1-argument vector builtin.
+func b1vec(name string, fn func(*VectorExpr) Expr) BuiltinFn {
+	return func(args []Expr) (Expr, error) {
+		if err := checkArity(name, args, 1); err != nil {
+			return nil, err
+		}
+		val, err := toVector(name, args[0])
+		if err != nil {
+			return nil, err
+		}
+		return fn(val), nil
+	}
+}
+
+// b1hash creates a 1-argument hash-table builtin.
+func b1hash(name string, fn func(*HashTableExpr) Expr) BuiltinFn {
+	return func(args []Expr) (Expr, error) {
+		if err := checkArity(name, args, 1); err != nil {
+			return nil, err
+		}
+		val, err := toHash(name, args[0])
+		if err != nil {
+			return nil, err
+		}
+		return fn(val), nil
+	}
+}
 
 func builtinAdd(args []Expr) (Expr, error) {
 	sum := 0.0
@@ -332,18 +434,9 @@ func builtinList(args []Expr) (Expr, error) {
 	return &ListExpr{elements: args}, nil
 }
 
-func builtinLength(args []Expr) (Expr, error) {
-	if err := checkArity("length", args, 1); err != nil {
-		return nil, err
-	}
-
-	list, err := toList("length", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	return num(float64(len(list.elements))), nil
-}
+var builtinLength = b1lst("length", func(l *ListExpr) Expr {
+	return num(float64(len(l.elements)))
+})
 
 func builtinMap(args []Expr) (Expr, error) {
 	if len(args) < 2 {
@@ -605,44 +698,11 @@ func builtinGetEnvVars(args []Expr) (Expr, error) {
 	return &ListExpr{elements: entries}, nil
 }
 
-func builtinSymbolToString(args []Expr) (Expr, error) {
-	if err := checkArity("symbol->string", args, 1); err != nil {
-		return nil, err
-	}
-
-	val, err := toSym("symbol->string", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	return &StringExpr{val: val}, nil
-}
-
-func builtinStringToSymbol(args []Expr) (Expr, error) {
-	if err := checkArity("string->symbol", args, 1); err != nil {
-		return nil, err
-	}
-
-	val, err := toStr("string->symbol", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	return &SymbolExpr{val: val}, nil
-}
-
-func builtinGensym(args []Expr) (Expr, error) {
-	if err := checkArity("gensym", args, 1); err != nil {
-		return nil, err
-	}
-
-	val, err := toStr("gensym", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	return &SymbolExpr{val: gensym(val)}, nil
-}
+var (
+	builtinSymbolToString = b1sym("symbol->string", func(v string) Expr { return &StringExpr{val: v} })
+	builtinStringToSymbol = b1s("string->symbol", func(v string) Expr { return &SymbolExpr{val: v} })
+	builtinGensym         = b1s("gensym", func(v string) Expr { return &SymbolExpr{val: gensym(v)} })
+)
 
 func builtinDatumToSyntax(args []Expr) (Expr, error) {
 	if err := checkArity("datum->syntax", args, 2); err != nil {

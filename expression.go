@@ -268,12 +268,12 @@ func newHashTable(tok Token) *HashTableExpr {
 }
 
 func (e *HashTableExpr) Get(key Expr) (Expr, bool) {
-	v, ok := e.data[key.String()]
+	v, ok := e.data[e.key(key)]
 	return v, ok
 }
 
 func (e *HashTableExpr) Set(key, val Expr) {
-	sk := key.String()
+	sk := e.key(key)
 
 	if _, exists := e.data[sk]; !exists {
 		e.order = append(e.order, sk)
@@ -284,7 +284,7 @@ func (e *HashTableExpr) Set(key, val Expr) {
 }
 
 func (e *HashTableExpr) Delete(key Expr) {
-	sk := key.String()
+	sk := e.key(key)
 
 	delete(e.data, sk)
 	delete(e.keys, sk)
@@ -295,6 +295,10 @@ func (e *HashTableExpr) Delete(key Expr) {
 			break
 		}
 	}
+}
+
+func (e *HashTableExpr) key(key Expr) string {
+	return fmt.Sprintf("%T:%s", key, key.String())
 }
 
 func (e *HashTableExpr) Size() int { return len(e.data) }

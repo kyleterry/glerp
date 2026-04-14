@@ -19,15 +19,6 @@ func hashTableBuiltins() map[string]BuiltinFn {
 	}
 }
 
-func toHash(name string, e Expr) (*HashTableExpr, error) {
-	h, ok := e.(*HashTableExpr)
-	if !ok || h.data == nil {
-		return nil, fmt.Errorf("%s: expected hash-table, got %s", name, e.String())
-	}
-
-	return h, nil
-}
-
 func builtinMakeHashTable(args []Expr) (Expr, error) {
 	if err := checkArity("make-hash-table", args, 0); err != nil {
 		return nil, err
@@ -102,75 +93,39 @@ func builtinHashTableContains(args []Expr) (Expr, error) {
 	return boolean(ok), nil
 }
 
-func builtinHashTableSize(args []Expr) (Expr, error) {
-	if err := checkArity("hash-table-size", args, 1); err != nil {
-		return nil, err
-	}
-
-	ht, err := toHash("hash-table-size", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	return num(float64(ht.Size())), nil
-}
-
-func builtinHashTableKeys(args []Expr) (Expr, error) {
-	if err := checkArity("hash-table-keys", args, 1); err != nil {
-		return nil, err
-	}
-
-	ht, err := toHash("hash-table-keys", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	elems := make([]Expr, len(ht.order))
-
-	for i, sk := range ht.order {
-		elems[i] = ht.keys[sk]
-	}
-
-	return &ListExpr{elements: elems}, nil
-}
-
-func builtinHashTableValues(args []Expr) (Expr, error) {
-	if err := checkArity("hash-table-values", args, 1); err != nil {
-		return nil, err
-	}
-
-	ht, err := toHash("hash-table-values", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	elems := make([]Expr, len(ht.order))
-
-	for i, sk := range ht.order {
-		elems[i] = ht.data[sk]
-	}
-
-	return &ListExpr{elements: elems}, nil
-}
-
-func builtinHashTableToAlist(args []Expr) (Expr, error) {
-	if err := checkArity("hash-table->alist", args, 1); err != nil {
-		return nil, err
-	}
-
-	ht, err := toHash("hash-table->alist", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	elems := make([]Expr, len(ht.order))
-
-	for i, sk := range ht.order {
-		elems[i] = &ListExpr{elements: []Expr{ht.keys[sk], ht.data[sk]}}
-	}
-
-	return &ListExpr{elements: elems}, nil
-}
+var (
+	builtinHashTableSize = b1hash("hash-table-size", func(ht *HashTableExpr) Expr {
+		return num(float64(ht.Size()))
+	})
+	builtinHashTableKeys = b1hash("hash-table-keys", func(ht *HashTableExpr) Expr {
+		elems := make([]Expr, len(ht.order))
+		for i, sk := range ht.order {
+			elems[i] = ht.keys[sk]
+		}
+		return &ListExpr{elements: elems}
+	})
+	builtinHashTableValues = b1hash("hash-table-values", func(ht *HashTableExpr) Expr {
+		elems := make([]Expr, len(ht.order))
+		for i, sk := range ht.order {
+			elems[i] = ht.data[sk]
+		}
+		return &ListExpr{elements: elems}
+	})
+	builtinHashTableToAlist = b1hash("hash-table->alist", func(ht *HashTableExpr) Expr {
+		elems := make([]Expr, len(ht.order))
+		for i, sk := range ht.order {
+			elems[i] = &ListExpr{elements: []Expr{ht.keys[sk], ht.data[sk]}}
+		}
+		return &ListExpr{elements: elems}
+	})
+	builtinHashTableCopy = b1hash("hash-table-copy", func(ht *HashTableExpr) Expr {
+		cp := newHashTable(ht.tok)
+		for _, sk := range ht.order {
+			cp.Set(ht.keys[sk], ht.data[sk])
+		}
+		return cp
+	})
+)
 
 func builtinAlistToHashTable(args []Expr) (Expr, error) {
 	if err := checkArity("alist->hash-table", args, 1); err != nil {
@@ -194,23 +149,4 @@ func builtinAlistToHashTable(args []Expr) (Expr, error) {
 	}
 
 	return ht, nil
-}
-
-func builtinHashTableCopy(args []Expr) (Expr, error) {
-	if err := checkArity("hash-table-copy", args, 1); err != nil {
-		return nil, err
-	}
-
-	ht, err := toHash("hash-table-copy", args[0])
-	if err != nil {
-		return nil, err
-	}
-
-	cp := newHashTable(ht.tok)
-
-	for _, sk := range ht.order {
-		cp.Set(ht.keys[sk], ht.data[sk])
-	}
-
-	return cp, nil
 }
