@@ -1,25 +1,25 @@
-;;; report.scm -- weekly temperature analysis
+;;; report.scm: weekly temperature analysis
 ;;;
 ;;; Demonstrates define-syntax macros:
-;;;   when / unless  -- new control-flow forms
-;;;   ->>            -- thread-last pipeline operator
-;;;   check          -- assertion that captures its own source text
+;;;   when / unless: new control-flow forms
+;;;   ->>          : thread-last pipeline operator
+;;;   check        : assertion that captures its own source text
 
 (import :scheme/list :scheme/math)
 
-;; (when test body ...) -- evaluate body forms only when test is truthy.
+;; (when test body ...) evaluates body forms only when test is truthy.
 (define-syntax when
   (syntax-rules ()
     [(_ test body ...)
      (if test (begin body ...))]))
 
-;; (unless test body ...) -- evaluate body forms only when test is falsy.
+;; (unless test body ...) evaluates body forms only when test is falsy.
 (define-syntax unless
   (syntax-rules ()
     [(_ test body ...)
      (if (not test) (begin body ...))]))
 
-;; (->> val step ...) -- thread val through steps as the last argument.
+;; (->> val step ...) threads val through steps as the last argument.
 ;; A step can be a bare name or a partial application (f arg ...).
 ;;
 ;;   (->> '(1 2 3) (filter odd?) length)
@@ -30,7 +30,7 @@
     [(_ x (f arg ...) rest ...)  (->> (f arg ... x) rest ...)]
     [(_ x f         rest ...)    (->> (f x)         rest ...)]))
 
-;; (check expr) -- evaluate expr and report pass/fail.
+;; (check expr) evaluates expr and reports pass/fail.
 ;; The source text of expr is captured at expansion time via quote,
 ;; so the output shows the original code rather than evaluated values.
 (define-syntax check

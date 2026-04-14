@@ -282,7 +282,7 @@ func (e *ListExpr) Eval(env *Environment) (Expr, error) {
 		return nil, fmt.Errorf("in procedure position: %w", err)
 	}
 
-	// User-registered forms receive unevaluated arguments — they control
+	// User-registered forms receive unevaluated arguments; they control
 	// their own evaluation, just like define, lambda, or if.
 	if f, ok := proc.(*FormExpr); ok {
 		return f.fn(tail, env)
@@ -464,7 +464,7 @@ func (e *LambdaExpr) String() string {
 
 // FormExpr is a Go-implemented special form. Unlike BuiltinExpr, its arguments
 // are passed unevaluated, giving the implementation full control over
-// evaluation semantics — identical to built-in forms like define and if.
+// evaluation semantics (identical to built-in forms like define and if).
 // Register one via Environment.RegisterForm.
 type FormExpr struct {
 	name string
@@ -578,7 +578,7 @@ func evalDefine(args []Expr, env *Environment) (Expr, error) {
 		return Void(), nil
 
 	case *Pair:
-		// (define (name params...) body...) — sugar for (define name (lambda (params...) body...))
+		// (define (name params...) body...) is sugar for (define name (lambda (params...) body...))
 		nameSym, ok := target.car.(*SymbolExpr)
 		if !ok {
 			return nil, fmt.Errorf("define: function name must be a symbol")
@@ -1126,7 +1126,7 @@ func evalDo(args []Expr, env *Environment) (Expr, error) {
 
 	type spec struct {
 		name string
-		step Expr // nil means no step — variable keeps its value
+		step Expr // nil means no step; variable keeps its value
 	}
 	specs := make([]spec, len(varSlice))
 	loopEnv := env.Extend()

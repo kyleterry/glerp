@@ -1,10 +1,10 @@
-;;; config-dsl — configuration using a custom DSL
+;;; config-dsl: configuration using a custom DSL
 ;;;
 ;;; (app), (server), (database), (routes), (features), and the HTTP
 ;;; method forms (GET) (POST) (DELETE) are all registered from Go.
 ;;; Normal Scheme expressions work anywhere a value is expected.
 
-;;; Top-level constants — available throughout the config.
+;;; Top-level constants: available throughout the config.
 (define cpu-count 4)
 (define debug     #f)
 

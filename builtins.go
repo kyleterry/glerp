@@ -13,9 +13,8 @@ import (
 type BuiltinFn func([]Expr) (Expr, error)
 
 // StandardBuiltins returns the default set of built-in procedures, including
-// arithmetic, list operations, and I/O. The returned map is a fresh copy —
-// callers may modify it on an EnvironmentConfig before calling NewEnvironment.
-//
+// arithmetic, list operations, and I/O. The returned map is a fresh copy;
+// callers may modify it on an EnvironmentConfig before calling NewEnvironment.//
 // Go-backed libraries (e.g. time) are not included here; they are registered
 // as Libraries on the config and accessed with (import :go/time) from Scheme.
 func StandardBuiltins() map[string]BuiltinFn {

@@ -1,4 +1,4 @@
-; (scheme list) — list utilities
+; (scheme list): list utilities
 (export range)
 
 (import (only :core/list reverse))

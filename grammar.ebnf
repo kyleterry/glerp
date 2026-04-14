@@ -108,7 +108,7 @@ do_binding  = "(" , symbol , expression , expression , ")" ;
 
 define_values = "(" , "define-values" , "(" , { symbol } , ")" , expression , ")" ;
 
-(* macros — syntax-rules *)
+(* macros: syntax-rules *)
 
 define_syntax = "(" , "define-syntax" , symbol , ( syntax_rules | transformer ) , ")" ;
 
@@ -119,7 +119,7 @@ syntax_rules  = "(" , "syntax-rules" , "(" , { symbol } , ")"
 pattern       = expression ;
 template      = expression ;
 
-(* macros — syntax-case *)
+(* macros: syntax-case *)
 
 transformer   = "(" , "lambda" , "(" , symbol , ")" , body , ")" ;
 

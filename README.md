@@ -1,18 +1,17 @@
 # glerp
 
-A small Scheme interpreter for embedding in Go programs. It is designed to
-serve as a scripting and configuration layer inside larger applications. You
-can evaluate Scheme expressions, extend the language with Go-backed procedures,
-or build a fully custom DSL by registering your own special forms.
+A small Scheme interpreter for embedding in Go programs. It serves as a
+scripting and configuration layer for larger applications. You can evaluate
+Scheme expressions, extend the language with Go procedures, or build custom
+DSLs by registering special forms.
 
-```
+```bash
 go get go.e64ec.com/glerp
 ```
 
 ## Language
 
-glerp implements a practical subset of Scheme with a few non-standard
-extensions that suit its use as an embedded DSL.
+glerp implements a practical subset of Scheme with extensions for embedding.
 
 ### Literals
 
@@ -20,276 +19,158 @@ extensions that suit its use as an embedded DSL.
 42          ; integer
 3.14        ; float
 "hello"     ; string
-#t  #f      ; booleans
+#t #f       ; booleans
 '()         ; empty list
 '(1 2 3)    ; quoted list
+#(1 2 3)    ; vector
+{ "k" "v" } ; hash table
 ```
 
-Square brackets may be used anywhere in place of parentheses. They are
-especially useful for binding lists in `let`, `do`, and similar forms:
+Square brackets can be used anywhere in place of parentheses. They are common
+in binding lists:
 
 ```scheme
-(let  [(x 3) (y 4)] (+ x y))
-(let* [(x 3) (y (* x 2))] y)
+(let [(x 3) (y 4)] (+ x y))
 ```
 
-### Core forms
+### Core Forms
 
 ```scheme
-(define x 10)                        ; variable
-(define (square n) (* n n))          ; function shorthand
-(define (f x . rest) rest)           ; variadic function
-(lambda (x y) (+ x y))              ; anonymous function
-(set! x 99)                          ; mutation
-(if (> x 0) "pos" "neg")            ; conditional (else clause optional)
-(cond [(= x 1) "one"] [else "?"])   ; multi-branch conditional
-(case x [(1 2) "low"] [else "hi"])  ; dispatch on eqv? value
-(let  [(a 1) (b 2)] (+ a b))        ; parallel bindings
-(let* [(a 1) (b (* a 2))] b)        ; sequential bindings
-(begin expr ...)                     ; sequence, returns last
-(and expr ...)  (or expr ...)        ; short-circuit logic
-(quote x)  'x                        ; prevent evaluation
-(define-values (lo hi) (values 3 7)) ; multiple values
+(define x 10)                           ; variable
+(define (square n) (* n n))             ; function shorthand
+(define (f x . rest) rest)              ; variadic function
+(lambda (x y) (+ x y))                  ; anonymous function
+(set! x 99)                             ; mutation
+(if (> x 0) "pos" "neg")                ; conditional
+(cond [(= x 1) "one"] [else "?"])       ; multi-branch
+(case x [(1 2) "low"] [else "hi"])      ; dispatch on eqv?
+(let [(a 1) (b 2)] (+ a b))             ; parallel binding
+(let* [(a 1) (b (* a 2))] b)            ; sequential binding
+(begin expr ...)                        ; sequence
+(and expr ...) (or expr ...)            ; short-circuit logic
+(quote x) 'x                            ; prevent evaluation
+(define-values (lo hi) (values 3 7))    ; multiple values
 ```
 
-### Quasiquote
+### Macros
 
-`` ` `` is shorthand for `quasiquote`, `,` for `unquote`, and `,@` for
-`unquote-splicing`.
+glerp supports hygienic macros via `define-syntax` with `syntax-rules` or
+`syntax-case`.
 
 ```scheme
-(define x 42)
-(define xs '(2 3))
-
-`(a ,x c)          ; => (a 42 c)
-`(a ,@xs d)        ; => (a 2 3 d)
-`(a ,(+ 1 2) c)    ; => (a 3 c)
+(define-syntax when
+  (syntax-rules ()
+    [(when test body ...)
+     (if test (begin body ...))]))
 ```
 
-### String interpolation
+### String Interpolation
 
-The `$"..."` syntax embeds Scheme expressions inside string literals. Any
-expression inside `{...}` is evaluated and converted to a string with
-`->string`.
+The `$"..."` syntax embeds Scheme expressions in strings. Expressions inside
+`{...}` are evaluated and converted to strings.
 
 ```scheme
 (define name "Alice")
-$"Hello {name}!"          ; => "Hello Alice!"
-$"squared: {(* 7 7)}"     ; => "squared: 49"
+$"Hello {name}!"          ; "Hello Alice!"
+$"squared: {(* 7 7)}"     ; "squared: 49"
 ```
 
 ### Iteration
 
 ```scheme
-(do [(i 0 (+ i 1))       ; var init step
-     (s 0 (+ s i))]
-    [(= i 5) s]           ; test result-expr
-  (display i))            ; body (optional, for side effects)
+(do [(i 0 (+ i 1)) (s 0 (+ s i))]
+    [(= i 5) s]
+  (display i))
 ```
 
-### Built-in procedures
+### Built-in Procedures
 
-```
-+  -  *  /             arithmetic (variadic)
-<  >  <=  >=  =        numeric comparison
+```text
++ - * /                arithmetic
+< > <= >= =            numeric comparison
 not                    boolean negation
-car  cdr  cons         list primitives
-caar cadr ... cddddr   car/cdr compositions (up to 4 deep)
-list  empty?           list utilities
+car cdr cons           list primitives
+list empty?            list utilities
+vector vector-ref      vector primitives
+hash-table-ref         hash table access
 values                 multiple return values
-string-append          concatenate strings
-->string               convert any value to a string
-display  display-ln    output
-newline                print a newline
+display display-ln     output
 ```
 
 ### Libraries
 
-glerp ships with a few importable libraries (lists, math, time). Import them
-with `(import :prefix/name)`:
+Import libraries with `(import :prefix/name)`. Core libraries include
+`:scheme/list`, `:scheme/math`, and `:scheme/time`.
 
 ```scheme
 (import :scheme/list)
-(import (only :scheme/list map filter))  ; selective import
-(import :scheme/list :scheme/math)       ; multiple in one call
+(import (only :scheme/list map filter))
 ```
 
-You can also create your own libraries — both Scheme-file and Go-backed — and
-register them when building an environment (see embedding below).
+## Embedding
 
-## Embedding glerp
-
-### Evaluate expressions
+### Evaluate Expressions
 
 ```go
 env := glerp.NewEnvironment(glerp.DefaultConfig())
-
 results, err := glerp.Eval(`(+ 1 2)`, env)
-if err != nil {
-    log.Fatal(err)
-}
 fmt.Println(results[len(results)-1]) // 3
 ```
 
-### Register a Go procedure
+### Register Go Procedures
 
-Add custom builtins to the config before creating the environment. The
-function receives pre-evaluated arguments.
+Add custom builtins to the config before creating the environment.
 
 ```go
 cfg := glerp.DefaultConfig()
 cfg.Builtins["http-get"] = func(args []glerp.Expr) (glerp.Expr, error) {
-    url, ok := args[0].(*glerp.StringExpr)
-    if !ok {
-        return nil, fmt.Errorf("http-get: expected string url")
-    }
-    resp, err := http.Get(url.Value())
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
-    body, _ := io.ReadAll(resp.Body)
-    // ... use body ...
+    // args are pre-evaluated
     return glerp.Void(), nil
 }
-
 env := glerp.NewEnvironment(cfg)
 ```
 
-### Extract typed values
+### Configuration DSLs
 
-Use `Load` to evaluate a config file and pull out typed values:
-
-```go
-cfg, err := glerp.Load("config.scm")
-if err != nil {
-    log.Fatal(err)
-}
-
-host, _  := cfg.String("host")
-port, _  := cfg.Int("port")
-debug, _ := cfg.Bool("debug")
-tags, _  := cfg.Strings("tags")
-```
-
-For more control, use `EvalFile` with a prepared environment.
-
-### Register a custom library
-
-Add libraries to the config to make them importable via `(import
-:prefix/name)`. Libraries can be Scheme files (via `go:embed`) or Go-backed
-builtins.
+Use `Load` to evaluate a file and extract typed values.
 
 ```go
-//go:embed mylibs
-var myLibs embed.FS
-
-cfg := glerp.DefaultConfig()
-cfg.Libraries = append(cfg.Libraries, glerp.Library{
-    Prefix: "myapp",
-    FS:     myLibs,
-})
-
-env := glerp.NewEnvironment(cfg)
+cfg, _ := glerp.Load("config.scm")
+host, _ := cfg.String("host")
+port, _ := cfg.Int("port")
 ```
 
-```scheme
-(import :myapp/utils)
-(greet "world")  ; calls a function defined in mylibs/utils.scm
-```
+### Custom Special Forms
 
-## Building a DSL
-
-Special forms receive their arguments *unevaluated*, giving you full control
-over evaluation semantics. This is how you build keyword-style DSLs.
-
-**`routes.scm`**
-
-```scheme
-(routes
-  (GET  "/health"    "health-check")
-  (GET  "/api/users" "list-users")
-  (POST "/api/users" "create-user"))
-```
-
-**`main.go`**
+Special forms receive *unevaluated* arguments, allowing you to define custom
+evaluation logic or keyword-based DSLs.
 
 ```go
-package main
-
-import (
-    "fmt"
-    "log"
-
-    "go.e64ec.com/glerp"
-)
-
-type Route struct {
-    Method, Path, Handler string
-}
-
-func main() {
-    var routes []Route
-
-    cfg := glerp.DefaultConfig()
-
-    for _, method := range []string{"GET", "POST", "PUT", "DELETE"} {
-        m := method
-        cfg.Forms[m] = func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
-            path, _ := args[0].Eval(env)
-            handler, _ := args[1].Eval(env)
-            routes = append(routes, Route{
-                Method:  m,
-                Path:    path.(*glerp.StringExpr).Value(),
-                Handler: handler.(*glerp.StringExpr).Value(),
-            })
-            return glerp.Void(), nil
-        }
+cfg.Forms["routes"] = func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
+    for _, arg := range args {
+        // manually evaluate or inspect args
     }
-
-    cfg.Forms["routes"] = func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
-        for _, arg := range args {
-            if _, err := arg.Eval(env); err != nil {
-                return nil, err
-            }
-        }
-        return glerp.Void(), nil
-    }
-
-    env := glerp.NewEnvironment(cfg)
-    if err := glerp.EvalFile("routes.scm", env); err != nil {
-        log.Fatal(err)
-    }
-
-    for _, r := range routes {
-        fmt.Printf("%-8s %-24s -> %s\n", r.Method, r.Path, r.Handler)
-    }
+    return glerp.Void(), nil
 }
 ```
 
-The `examples/` directory contains more complete examples:
-[config-dsl](examples/config-dsl) (server, database, routes, and feature-flag
-DSL) and [syntax-macros](examples/syntax-macros) (`when`, `unless`, `->>`, and
-a `check` assertion macro).
+## CLI
 
-## REPL and file runner
-
-```
+```bash
 go install go.e64ec.com/glerp/cmd/glerp@latest
-```
 
-```
-glerp                          # start the REPL
-glerp script.scm               # evaluate a file
-echo '(display "hi")' | glerp  # evaluate from stdin
+# REPL
+glerp
+
+# file runner
+glerp script.scm
+
+# eval expressions from stdin
+echo '(display-ln "hi")' | glerp -
 ```
 
 ## Development
 
-```
-nix develop   # enter the dev shell (go 1.26, gopls, golangci-lint, gotools)
-
-go test ./...
-go vet ./...
-golangci-lint run ./...
+```bash
+task check  # run linter, vetter and tests
 ```

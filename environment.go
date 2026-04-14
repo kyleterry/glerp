@@ -55,7 +55,7 @@ func (e *Environment) RegisterForm(name string, fn FormFn) {
 }
 
 // StandardForms returns the default set of special forms. The returned map is
-// a fresh copy — callers may add, remove, or replace entries before passing it
+// a fresh copy; callers may add, remove, or replace entries before passing it
 // to an EnvironmentConfig.
 func StandardForms() map[string]FormFn {
 	return map[string]FormFn{
@@ -174,7 +174,7 @@ type EnvironmentConfig struct {
 
 // DefaultConfig returns an EnvironmentConfig populated with the standard
 // builtins, forms, preludes, and libraries. The returned config is a fresh
-// copy — callers may modify any field before passing it to NewEnvironment.
+// copy; callers may modify any field before passing it to NewEnvironment.
 func DefaultConfig() *EnvironmentConfig {
 	return &EnvironmentConfig{
 		Builtins:  StandardBuiltins(),

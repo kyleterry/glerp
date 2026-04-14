@@ -1,4 +1,4 @@
-; (scheme math) — mathematical utilities
+; (scheme math): mathematical utilities
 (export cube average clamp pi)
 
 ;; Returns x raised to the third power.

@@ -1,4 +1,4 @@
-;; Extended time library — (import :scheme/time)
+;; Extended time library: (import :scheme/time)
 ;;
 ;; Times are represented as real numbers of seconds since the POSIX epoch
 ;; (1970-01-01T00:00:00 UTC), consistent with R7RS current-second.

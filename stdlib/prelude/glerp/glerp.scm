@@ -1,4 +1,4 @@
-; glerp prelude — project-specific sugar
+; glerp prelude: project-specific sugar
 (import :glerp/sugar
         :glerp/struct)
 

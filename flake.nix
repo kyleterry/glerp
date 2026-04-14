@@ -1,5 +1,5 @@
 {
-  description = "glerp — embeddable Scheme interpreter in Go";
+  description = "glerp: embeddable Scheme interpreter in Go";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";

@@ -4,7 +4,7 @@
 // config.scm is written as a proper DSL: (server ...), (database ...),
 // (GET ...), (features ...) are all custom forms registered from Go before
 // the file is evaluated. Each form receives its arguments unevaluated and
-// controls its own semantics — values inside forms can be arbitrary Scheme
+// controls its own semantics; values inside forms can be arbitrary Scheme
 // expressions, including computed values and conditionals.
 package main
 
@@ -103,7 +103,7 @@ func evalInt(e glerp.Expr, env *glerp.Environment) (int, error) {
 // registerForms installs the custom DSL forms into env. Each form is a
 // closure that populates the appropriate field of cfg when evaluated.
 func registerForms(env *glerp.Environment, cfg *AppConfig) {
-	// (server (key value) ...) — populates cfg.Server
+	// (server (key value) ...) populates cfg.Server
 	env.RegisterForm("server", func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
 		for _, arg := range args {
 			key, vals, err := subform(arg)
@@ -134,7 +134,7 @@ func registerForms(env *glerp.Environment, cfg *AppConfig) {
 		return glerp.Void(), nil
 	})
 
-	// (database (key value) ...) — populates cfg.DB
+	// (database (key value) ...) populates cfg.DB
 	env.RegisterForm(
 		"database",
 		func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
@@ -187,7 +187,7 @@ func registerForms(env *glerp.Environment, cfg *AppConfig) {
 		})
 	}
 
-	// (routes body...) — evaluates each child route form in order.
+	// (routes body...) evaluates each child route form in order.
 	env.RegisterForm("routes", func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
 		for _, arg := range args {
 			if _, err := arg.Eval(env); err != nil {
@@ -197,7 +197,7 @@ func registerForms(env *glerp.Environment, cfg *AppConfig) {
 		return glerp.Void(), nil
 	})
 
-	// (features name ...) — each argument is a bare symbol used as the
+	// (features name ...) uses each argument as a bare symbol for the
 	// feature name directly, without environment lookup.
 	env.RegisterForm(
 		"features",
@@ -214,7 +214,7 @@ func registerForms(env *glerp.Environment, cfg *AppConfig) {
 		},
 	)
 
-	// (app name version sub-form...) — top-level DSL entry point.
+	// (app name version sub-form...) is the top-level DSL entry point.
 	// Sets name/version then evaluates the sub-forms (server, database, …).
 	env.RegisterForm("app", func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
 		if len(args) < 2 {

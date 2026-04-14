@@ -1,4 +1,4 @@
-; core prelude — standard Scheme fundamentals
+; core prelude: standard Scheme fundamentals
 (import :core/list)
 (import (only :go/time current-second current-jiffy))
 

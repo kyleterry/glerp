@@ -10,8 +10,14 @@ import (
 	"go.e64ec.com/glerp"
 )
 
+var version = "dev"
+
 func main() {
 	if len(os.Args) > 1 {
+		if os.Args[1] == "-v" || os.Args[1] == "--version" {
+			fmt.Printf("glerp %s\n", version)
+			return
+		}
 		runFile(os.Args[1])
 		return
 	}
@@ -110,7 +116,7 @@ func runREPL() {
 	}
 	defer rl.Close() //nolint:errcheck
 
-	fmt.Println("glerp 0.1  --  Ctrl-D to exit")
+	fmt.Printf("glerp %s: Ctrl-D to exit\n", version)
 	var buf strings.Builder
 
 	for {

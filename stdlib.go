@@ -21,7 +21,7 @@ type registry struct {
 
 // StandardPreludes returns the default set of preludes: core (standard Scheme
 // fundamentals) and glerp (project-specific sugar). The returned slice is a
-// fresh copy — callers may append, remove, or reorder entries before setting
+// fresh copy; callers may append, remove, or reorder entries before setting
 // them on an EnvironmentConfig.
 func StandardPreludes() []Prelude {
 	coreFS, _ := fs.Sub(stdlibFS, "stdlib/prelude/core")
@@ -35,7 +35,7 @@ func StandardPreludes() []Prelude {
 
 // StandardLibraries returns the default set of importable libraries: the
 // embedded scheme stdlib and the Go-backed time library. The returned slice
-// is a fresh copy — callers may append, remove, or replace entries before
+// is a fresh copy; callers may append, remove, or replace entries before
 // setting them on an EnvironmentConfig.
 func StandardLibraries() []Library {
 	schemeFS, _ := fs.Sub(stdlibFS, "stdlib/scheme")
@@ -48,7 +48,7 @@ func StandardLibraries() []Library {
 
 // loadPreludes registers each prelude's FS as an importable library and
 // evaluates its entry point into env. Panics on error because preludes are
-// embedded at compile time — a failure is a programmer bug.
+// embedded at compile time; a failure is a programmer bug.
 func loadPreludes(env *Environment, preludes []Prelude) {
 	for _, p := range preludes {
 		env.reg.libs = append(env.reg.libs, Library{Prefix: p.Name, FS: p.FS})
@@ -73,7 +73,7 @@ func loadPreludes(env *Environment, preludes []Prelude) {
 func evalExport(args []Expr, env *Environment) (Expr, error) {
 	if len(args) == 1 {
 		if b, ok := args[0].(*BoolExpr); ok && b.val {
-			return Void(), nil // #t: export all — leave exports as nil
+			return Void(), nil // #t: export all (leave exports as nil)
 		}
 	}
 
@@ -92,9 +92,9 @@ func evalExport(args []Expr, env *Environment) (Expr, error) {
 
 // evalImport implements (import <spec> ...) where each spec is one of:
 //
-//	:scheme/list              — import all exports from the named stdlib library
-//	./relative/path           — import all exports from a .scm file relative to CWD
-//	(only <spec> name ...)    — import a named subset of a library's exports
+//	:scheme/list    : import all exports from the named stdlib library
+//	./relative/path : import all exports from a .scm file relative to CWD
+//	(only <spec> name ...) : import a named subset of a library's exports
 func evalImport(args []Expr, env *Environment) (Expr, error) {
 	if len(args) == 0 {
 		return nil, fmt.Errorf("import: expected at least one import spec")

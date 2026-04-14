@@ -345,7 +345,7 @@ func splitInterp(s string) []interpSegment {
 func parseInterpString(tok Token) (Expr, error) {
 	segs := splitInterp(tok.Value)
 
-	// No interpolations — plain string literal.
+	// No interpolations; plain string literal.
 	hasExpr := false
 	for _, s := range segs {
 		if s.isExpr {
