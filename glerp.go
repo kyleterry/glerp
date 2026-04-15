@@ -30,7 +30,7 @@ func Eval(src string, env *Environment) ([]Expr, error) {
 	results := make([]Expr, 0, len(exprs))
 
 	for _, expr := range exprs {
-		result, err := expr.Eval(env)
+		result, err := evalFull(expr, env)
 		if err != nil {
 			return nil, err
 		}

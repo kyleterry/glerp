@@ -465,7 +465,7 @@ func evalDefineSyntax(args []Expr, env *Environment) (Expr, error) {
 		return nil, fmt.Errorf("define-syntax: name must be a symbol, got %s", args[0].String())
 	}
 
-	transformer, err := args[1].Eval(env)
+	transformer, err := evalFull(args[1], env)
 	if err != nil {
 		return nil, err
 	}

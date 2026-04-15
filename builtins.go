@@ -533,7 +533,7 @@ func builtinMap(args []Expr) (Expr, error) {
 	results := make([]Expr, len(slice))
 
 	for i, elem := range slice {
-		result, err := apply(proc, []Expr{elem})
+		result, err := trampoline(apply(proc, []Expr{elem}))
 		if err != nil {
 			return nil, fmt.Errorf("map: %w", err)
 		}
@@ -561,7 +561,7 @@ func builtinApply(args []Expr) (Expr, error) {
 	allArgs = append(allArgs, args[1:len(args)-1]...)
 	allArgs = append(allArgs, slice...)
 
-	return apply(proc, allArgs)
+	return trampoline(apply(proc, allArgs))
 }
 
 func displayValue(e Expr) string {

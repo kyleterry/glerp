@@ -198,6 +198,54 @@ func TestEval(t *testing.T) {
 			"55",
 		},
 
+		// tail call optimization
+		{"tco tail-recursive loop", `
+			(define (loop n)
+			  (if (= n 0) "done"
+			      (loop (- n 1))))
+			(loop 1000000)
+		`, `"done"`},
+		{"tco accumulator factorial", `
+			(define (fact-acc n acc)
+			  (if (= n 0) acc
+			      (fact-acc (- n 1) (* n acc))))
+			(fact-acc 20 1)
+		`, "2432902008176640000"},
+		{"tco mutual recursion", `
+			(define (even? n)
+			  (if (= n 0) #t (odd? (- n 1))))
+			(define (odd? n)
+			  (if (= n 0) #f (even? (- n 1))))
+			(even? 100000)
+		`, "#t"},
+		{"tco via and tail position", `
+			(define (all-positive? lst)
+			  (if (empty? lst) #t
+			      (and (> (car lst) 0) (all-positive? (cdr lst)))))
+			(all-positive? '(1 2 3 4 5))
+		`, "#t"},
+		{"tco via or tail position", `
+			(define (any-zero? lst)
+			  (if (empty? lst) #f
+			      (or (= (car lst) 0) (any-zero? (cdr lst)))))
+			(any-zero? '(1 2 3 0 5))
+		`, "#t"},
+		{"tco via cond", `
+			(define (classify n)
+			  (cond
+			    ((< n 0) "negative")
+			    ((= n 0) "zero")
+			    (else (classify (- n 1)))))
+			(classify 100000)
+		`, `"zero"`},
+		{"tco via let body", `
+			(define (count-down n)
+			  (let ((x n))
+			    (if (= x 0) "done"
+			        (count-down (- x 1)))))
+			(count-down 100000)
+		`, `"done"`},
+
 		// higher-order
 		{"map-like", `
 			(define (my-map f lst)
