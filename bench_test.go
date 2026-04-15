@@ -57,6 +57,14 @@ func BenchmarkParse(b *testing.B) {
 	}
 }
 
+func benchSetup(b *testing.B, env *Environment, src string) {
+	b.Helper()
+
+	if _, err := Eval(src, env); err != nil {
+		b.Fatal(err)
+	}
+}
+
 func BenchmarkEval(b *testing.B) {
 	b.Run("arithmetic", func(b *testing.B) {
 		env := NewEnvironment(DefaultConfig())
@@ -70,7 +78,7 @@ func BenchmarkEval(b *testing.B) {
 
 	b.Run("factorial_10", func(b *testing.B) {
 		env := NewEnvironment(DefaultConfig())
-		Eval("(define (fact n) (if (= n 0) 1 (* n (fact (- n 1)))))", env)
+		benchSetup(b, env, "(define (fact n) (if (= n 0) 1 (* n (fact (- n 1)))))")
 
 		b.ResetTimer()
 
@@ -84,7 +92,7 @@ func BenchmarkEval(b *testing.B) {
 
 	b.Run("fibonacci_15", func(b *testing.B) {
 		env := NewEnvironment(DefaultConfig())
-		Eval("(define (fib n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2)))))", env)
+		benchSetup(b, env, "(define (fib n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2)))))")
 
 		b.ResetTimer()
 
@@ -98,8 +106,8 @@ func BenchmarkEval(b *testing.B) {
 
 	b.Run("lambda_closure", func(b *testing.B) {
 		env := NewEnvironment(DefaultConfig())
-		Eval("(define (make-adder n) (lambda (x) (+ n x)))", env)
-		Eval("(define add5 (make-adder 5))", env)
+		benchSetup(b, env, "(define (make-adder n) (lambda (x) (+ n x)))")
+		benchSetup(b, env, "(define add5 (make-adder 5))")
 
 		b.ResetTimer()
 
@@ -113,10 +121,10 @@ func BenchmarkEval(b *testing.B) {
 
 	b.Run("list_operations", func(b *testing.B) {
 		env := NewEnvironment(DefaultConfig())
-		Eval(`(define (my-length lst)
+		benchSetup(b, env, `(define (my-length lst)
 			(if (empty? lst) 0
-			    (+ 1 (my-length (cdr lst)))))`, env)
-		Eval("(define xs '(1 2 3 4 5 6 7 8 9 10))", env)
+			    (+ 1 (my-length (cdr lst)))))`)
+		benchSetup(b, env, "(define xs '(1 2 3 4 5 6 7 8 9 10))")
 
 		b.ResetTimer()
 
@@ -130,8 +138,8 @@ func BenchmarkEval(b *testing.B) {
 
 	b.Run("tail_call_1000", func(b *testing.B) {
 		env := NewEnvironment(DefaultConfig())
-		Eval(`(define (loop n)
-			(if (= n 0) "done" (loop (- n 1))))`, env)
+		benchSetup(b, env, `(define (loop n)
+			(if (= n 0) "done" (loop (- n 1))))`)
 
 		b.ResetTimer()
 
