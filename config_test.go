@@ -169,11 +169,11 @@ func TestEvalFilePreRegisteredForm(t *testing.T) {
 
 	ecfg := glerp.DefaultConfig()
 	ecfg.Forms["server"] = func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
-		host, err := args[0].Eval(env)
+		host, err := glerp.EvalFull(args[0], env)
 		if err != nil {
 			return nil, err
 		}
-		port, err := args[1].Eval(env)
+		port, err := glerp.EvalFull(args[1], env)
 		if err != nil {
 			return nil, err
 		}

@@ -117,7 +117,7 @@ type Pair struct {
 }
 
 func (p *Pair) Eval(env *Environment) (Expr, error) {
-	proc, err := evalFull(p.car, env)
+	proc, err := EvalFull(p.car, env)
 	if err != nil {
 		return nil, fmt.Errorf("in procedure position: %w", err)
 	}
@@ -139,7 +139,7 @@ func (p *Pair) Eval(env *Environment) (Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		return result.Eval(env)
+		return EvalFull(result, env)
 	}
 
 	if transformer, ok := proc.(*SyntaxRulesExpr); ok {
@@ -147,7 +147,7 @@ func (p *Pair) Eval(env *Environment) (Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		return expanded.Eval(env)
+		return EvalFull(expanded, env)
 	}
 
 	var args []Expr
@@ -155,7 +155,7 @@ func (p *Pair) Eval(env *Environment) (Expr, error) {
 	for {
 		switch l := curr.(type) {
 		case *Pair:
-			val, err := evalFull(l.car, env)
+			val, err := EvalFull(l.car, env)
 			if err != nil {
 				return nil, err
 			}
@@ -272,7 +272,7 @@ func (e *ListExpr) Eval(env *Environment) (Expr, error) {
 	head := e.elements[0]
 	tail := e.elements[1:]
 
-	proc, err := evalFull(head, env)
+	proc, err := EvalFull(head, env)
 	if err != nil {
 		return nil, fmt.Errorf("in procedure position: %w", err)
 	}
@@ -286,7 +286,7 @@ func (e *ListExpr) Eval(env *Environment) (Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		return result.Eval(env)
+		return EvalFull(result, env)
 	}
 
 	if transformer, ok := proc.(*SyntaxRulesExpr); ok {
@@ -294,13 +294,13 @@ func (e *ListExpr) Eval(env *Environment) (Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		return expanded.Eval(env)
+		return EvalFull(expanded, env)
 	}
 
 	args := make([]Expr, len(tail))
 
 	for i, arg := range tail {
-		args[i], err = evalFull(arg, env)
+		args[i], err = EvalFull(arg, env)
 		if err != nil {
 			return nil, err
 		}
@@ -350,12 +350,12 @@ func (e *HashTableExpr) Eval(env *Environment) (Expr, error) {
 	ht := newHashTable(e.tok)
 
 	for i := 0; i < len(e.pairs); i += 2 {
-		k, err := evalFull(e.pairs[i], env)
+		k, err := EvalFull(e.pairs[i], env)
 		if err != nil {
 			return nil, err
 		}
 
-		v, err := evalFull(e.pairs[i+1], env)
+		v, err := EvalFull(e.pairs[i+1], env)
 		if err != nil {
 			return nil, err
 		}
@@ -557,7 +557,7 @@ func evalDefine(args []Expr, env *Environment) (Expr, error) {
 			return nil, fmt.Errorf("define: variable form expects exactly 1 value")
 		}
 
-		val, err := evalFull(args[1], env)
+		val, err := EvalFull(args[1], env)
 		if err != nil {
 			return nil, err
 		}
@@ -629,7 +629,7 @@ func evalIf(args []Expr, env *Environment) (Expr, error) {
 		return nil, fmt.Errorf("if: expected 2 or 3 arguments, got %d", len(args))
 	}
 
-	cond, err := evalFull(args[0], env)
+	cond, err := EvalFull(args[0], env)
 	if err != nil {
 		return nil, err
 	}
@@ -675,7 +675,7 @@ func evalLetBindings(name string, args []Expr, env *Environment, sequential bool
 			evalEnv = child
 		}
 
-		val, err := evalFull(pairSlice[1], evalEnv)
+		val, err := EvalFull(pairSlice[1], evalEnv)
 		if err != nil {
 			return nil, err
 		}
@@ -733,7 +733,7 @@ func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
 			return nil, fmt.Errorf("unquote: expected 1 argument, got %d", len(inner))
 		}
 		if depth == 0 {
-			return evalFull(inner[0], env)
+			return EvalFull(inner[0], env)
 		}
 		expanded, err := expandQQ(inner[0], depth-1, env)
 		if err != nil {
@@ -815,7 +815,7 @@ func expandQQ(expr Expr, depth int, env *Environment) (Expr, error) {
 			}
 
 			if depth == 0 {
-				val, err := evalFull(spliceArgs[0], env)
+				val, err := EvalFull(spliceArgs[0], env)
 				if err != nil {
 					return nil, err
 				}
@@ -867,7 +867,7 @@ func evalSetBang(args []Expr, env *Environment) (Expr, error) {
 		return nil, fmt.Errorf("set!: target must be a symbol")
 	}
 
-	val, err := evalFull(args[1], env)
+	val, err := EvalFull(args[1], env)
 	if err != nil {
 		return nil, err
 	}
@@ -885,7 +885,7 @@ func evalBody(exprs []Expr, env *Environment) (Expr, error) {
 	}
 
 	for _, expr := range exprs[:len(exprs)-1] {
-		if _, err := evalFull(expr, env); err != nil {
+		if _, err := EvalFull(expr, env); err != nil {
 			return nil, err
 		}
 	}
@@ -919,7 +919,7 @@ func evalDefineValues(args []Expr, env *Environment) (Expr, error) {
 		syms[i] = sym.val
 	}
 
-	result, err := evalFull(args[1], env)
+	result, err := EvalFull(args[1], env)
 	if err != nil {
 		return nil, err
 	}
@@ -988,7 +988,7 @@ func evalCase(args []Expr, env *Environment) (Expr, error) {
 		return nil, fmt.Errorf("case: requires a key expression and at least one clause")
 	}
 
-	key, err := evalFull(args[0], env)
+	key, err := EvalFull(args[0], env)
 	if err != nil {
 		return nil, err
 	}
@@ -1045,7 +1045,7 @@ func evalCond(args []Expr, env *Environment) (Expr, error) {
 			return evalBody(body, env)
 		}
 
-		result, err := evalFull(test, env)
+		result, err := EvalFull(test, env)
 		if err != nil {
 			return nil, err
 		}
@@ -1064,7 +1064,7 @@ func evalAnd(args []Expr, env *Environment) (Expr, error) {
 	}
 
 	for _, arg := range args[:len(args)-1] {
-		val, err := evalFull(arg, env)
+		val, err := EvalFull(arg, env)
 		if err != nil {
 			return nil, err
 		}
@@ -1083,7 +1083,7 @@ func evalOr(args []Expr, env *Environment) (Expr, error) {
 	}
 
 	for _, arg := range args[:len(args)-1] {
-		val, err := evalFull(arg, env)
+		val, err := EvalFull(arg, env)
 		if err != nil {
 			return nil, err
 		}
@@ -1141,7 +1141,7 @@ func evalDo(args []Expr, env *Environment) (Expr, error) {
 			)
 		}
 
-		init, err := evalFull(clauseSlice[1], env)
+		init, err := EvalFull(clauseSlice[1], env)
 		if err != nil {
 			return nil, err
 		}
@@ -1166,7 +1166,7 @@ func evalDo(args []Expr, env *Environment) (Expr, error) {
 	commands := args[2:]
 
 	for {
-		testVal, err := evalFull(testExpr, loopEnv)
+		testVal, err := EvalFull(testExpr, loopEnv)
 		if err != nil {
 			return nil, err
 		}
@@ -1179,7 +1179,7 @@ func evalDo(args []Expr, env *Environment) (Expr, error) {
 		}
 
 		for _, cmd := range commands {
-			if _, err := evalFull(cmd, loopEnv); err != nil {
+			if _, err := EvalFull(cmd, loopEnv); err != nil {
 				return nil, err
 			}
 		}
@@ -1187,7 +1187,7 @@ func evalDo(args []Expr, env *Environment) (Expr, error) {
 		next := make([]Expr, len(specs))
 		for i, s := range specs {
 			if s.step != nil {
-				val, err := evalFull(s.step, loopEnv)
+				val, err := EvalFull(s.step, loopEnv)
 				if err != nil {
 					return nil, err
 				}

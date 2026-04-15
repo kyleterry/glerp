@@ -57,7 +57,7 @@ func runFile(path string) {
 
 	env := glerp.NewEnvironment(glerp.DefaultConfig())
 	for _, expr := range exprs {
-		if _, err := expr.Eval(env); err != nil {
+		if _, err := glerp.EvalFull(expr, env); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
@@ -168,7 +168,7 @@ func runREPL() {
 		}
 
 		for _, expr := range exprs {
-			result, err := expr.Eval(env)
+			result, err := glerp.EvalFull(expr, env)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %v\n", err)
 				continue

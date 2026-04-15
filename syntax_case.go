@@ -47,7 +47,7 @@ func evalSyntaxCase(args []Expr, env *Environment) (Expr, error) {
 		return nil, fmt.Errorf("syntax-case: expected input, literals, and at least one clause")
 	}
 
-	input, err := evalFull(args[0], env)
+	input, err := EvalFull(args[0], env)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func evalSyntaxCase(args []Expr, env *Environment) (Expr, error) {
 		storeSyntaxBindings(child, b, literals, env)
 
 		if fender != nil {
-			fv, err := evalFull(fender, child)
+			fv, err := EvalFull(fender, child)
 			if err != nil {
 				return nil, err
 			}
@@ -146,7 +146,7 @@ func evalWithSyntax(args []Expr, env *Environment) (Expr, error) {
 			)
 		}
 
-		val, err := evalFull(pairSlice[1], env)
+		val, err := EvalFull(pairSlice[1], env)
 		if err != nil {
 			return nil, err
 		}
@@ -257,7 +257,7 @@ func expandQuasisyntax(
 			return nil, fmt.Errorf("unsyntax: expected 1 argument, got %d", len(elements)-1)
 		}
 
-		return evalFull(elements[1], env)
+		return EvalFull(elements[1], env)
 	}
 
 	// Walk children, handling unsyntax-splicing.
@@ -267,7 +267,7 @@ func expandQuasisyntax(
 		innerSlice, err := toSlice("quasisyntax", elem)
 		if err == nil && len(innerSlice) == 2 {
 			if sym, ok := innerSlice[0].(*SymbolExpr); ok && sym.val == "unsyntax-splicing" {
-				val, err := evalFull(innerSlice[1], env)
+				val, err := EvalFull(innerSlice[1], env)
 				if err != nil {
 					return nil, err
 				}

@@ -72,7 +72,7 @@ func subform(e glerp.Expr) (key string, vals []glerp.Expr, err error) {
 
 // evalStr evaluates e and asserts the result is a string.
 func evalStr(e glerp.Expr, env *glerp.Environment) (string, error) {
-	v, err := e.Eval(env)
+	v, err := glerp.EvalFull(e, env)
 	if err != nil {
 		return "", err
 	}
@@ -85,7 +85,7 @@ func evalStr(e glerp.Expr, env *glerp.Environment) (string, error) {
 
 // evalInt evaluates e and asserts the result is an integer.
 func evalInt(e glerp.Expr, env *glerp.Environment) (int, error) {
-	v, err := e.Eval(env)
+	v, err := glerp.EvalFull(e, env)
 	if err != nil {
 		return 0, err
 	}
@@ -190,7 +190,7 @@ func registerForms(env *glerp.Environment, cfg *AppConfig) {
 	// (routes body...) evaluates each child route form in order.
 	env.RegisterForm("routes", func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
 		for _, arg := range args {
-			if _, err := arg.Eval(env); err != nil {
+			if _, err := glerp.EvalFull(arg, env); err != nil {
 				return nil, err
 			}
 		}
@@ -203,7 +203,7 @@ func registerForms(env *glerp.Environment, cfg *AppConfig) {
 		"features",
 		func(args []glerp.Expr, env *glerp.Environment) (glerp.Expr, error) {
 			for _, arg := range args {
-				argVal, err := arg.Eval(env)
+				argVal, err := glerp.EvalFull(arg, env)
 				if err != nil {
 					return nil, err
 				}
@@ -235,7 +235,7 @@ func registerForms(env *glerp.Environment, cfg *AppConfig) {
 		// (routes ...), and (features ...) are all registered forms in env,
 		// calling Eval() on each dispatches to their handlers above.
 		for _, sub := range args[2:] {
-			if _, err := sub.Eval(env); err != nil {
+			if _, err := glerp.EvalFull(sub, env); err != nil {
 				return nil, err
 			}
 		}
