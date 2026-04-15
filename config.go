@@ -44,7 +44,7 @@ func EvalFile(path string, env *Environment) error {
 	}
 
 	for _, expr := range exprs {
-		if _, err := expr.Eval(env); err != nil {
+		if _, err := EvalFull(expr, env); err != nil {
 			return fmt.Errorf("eval: %w", err)
 		}
 	}
